@@ -34,7 +34,6 @@ function TanquesEstacion({ estacion }) {
         </div>
         <span className="text-xs text-blue-500">{abierto ? '▲ Cerrar' : '▼ Ver historial'}</span>
       </button>
-
       {abierto && (
         <div className="border-t border-gray-100">
           {loading ? (
@@ -83,6 +82,9 @@ function TanquesEstacion({ estacion }) {
     </div>
   )
 }
+
+const metodosPago = ['neonet', 'bac', 'deposito', 'cupon', 'neonet_prepago', 'descuento_club_bi', 'ach_transferencia', 'flota_credomatic', 'caja_chica', 'vales_clientes', 'uno_plus', 'nomina', 'descuento_amigo', 'piloto', 'gasoline', 'prueba_surtidor']
+const metodosLabel = { neonet: 'Neonet', bac: 'BAC', deposito: 'Depósito', cupon: 'Cupón', neonet_prepago: 'Neonet Prepago', descuento_club_bi: 'Descuento Club Bi', ach_transferencia: 'ACH / Transferencia', flota_credomatic: 'Flota Credomatic', caja_chica: 'Caja Chica', vales_clientes: 'Vales Clientes', uno_plus: 'Uno Plus', nomina: 'Nómina', descuento_amigo: 'Descuento Amigo', piloto: 'Piloto', gasoline: 'Gasoline', prueba_surtidor: 'Prueba de surtidor' }
 
 export default function Admin({ session }) {
   const router = useRouter()
@@ -197,32 +199,45 @@ export default function Admin({ session }) {
     URL.revokeObjectURL(url)
   }
 
+  function ventaAFila(v, estacionNombre) {
+    const totalIngresos = parseFloat(v.regular_ingresos || 0) + parseFloat(v.premium_ingresos || 0) + parseFloat(v.diesel_ingresos || 0) + parseFloat(v.diesel_plus_ingresos || 0)
+    const totalCobros = metodosPago.reduce((s, m) => s + (parseFloat(v[m]) || 0), 0)
+    const fila = {}
+    if (estacionNombre) fila['Estacion'] = estacionNombre
+    fila['Fecha'] = v.fecha
+    fila['Regular (gal)'] = v.regular_litros || 0
+    fila['Regular (Q)'] = v.regular_ingresos || 0
+    fila['Super (gal)'] = v.premium_litros || 0
+    fila['Super (Q)'] = v.premium_ingresos || 0
+    fila['Diesel (gal)'] = v.diesel_litros || 0
+    fila['Diesel (Q)'] = v.diesel_ingresos || 0
+    fila['V-Power (gal)'] = v.diesel_plus_litros || 0
+    fila['V-Power (Q)'] = v.diesel_plus_ingresos || 0
+    fila['Total Q'] = totalIngresos
+    metodosPago.forEach(m => { fila[metodosLabel[m]] = parseFloat(v[m]) || 0 })
+    fila['Total cobros'] = totalCobros
+    fila['Diferencia'] = parseFloat((totalIngresos - totalCobros).toFixed(2))
+    fila['Notas'] = v.notas || ''
+    return fila
+  }
+
   async function exportar(estacion, tipo) {
     setExportando(`${estacion.id}-${tipo}`)
-    let datos = []
     const nombre = estacion.nombre.replace(/\s+/g, '_')
     const fecha = new Date().toISOString().split('T')[0]
 
     if (tipo === 'ventas') {
       const { data } = await supabase.from('ventas')
-        .select('fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, notas')
+        .select(`fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, ${metodosPago.join(', ')}, notas`)
         .eq('estacion_id', estacion.id).order('fecha', { ascending: false })
-      datos = (data || []).map(v => ({
-        Fecha: v.fecha,
-        'Regular (gal)': v.regular_litros, 'Regular (Q)': v.regular_ingresos,
-        'Super (gal)': v.premium_litros, 'Super (Q)': v.premium_ingresos,
-        'Diesel (gal)': v.diesel_litros, 'Diesel (Q)': v.diesel_ingresos,
-        'V-Power (gal)': v.diesel_plus_litros, 'V-Power (Q)': v.diesel_plus_ingresos,
-        'Total Q': parseFloat(v.regular_ingresos) + parseFloat(v.premium_ingresos) + parseFloat(v.diesel_ingresos) + parseFloat(v.diesel_plus_ingresos),
-        Notas: v.notas || ''
-      }))
+      const datos = (data || []).map(v => ventaAFila(v, null))
       descargarCSV(datos, `ventas_${nombre}_${fecha}.csv`)
     }
     if (tipo === 'entregas') {
       const { data } = await supabase.from('entregas')
         .select('fecha_entrega, proveedor, tipo_combustible, volumen_litros, precio_por_litro, costo_total, estado, notas')
         .eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false })
-      datos = (data || []).map(e => ({
+      const datos = (data || []).map(e => ({
         Fecha: e.fecha_entrega, Proveedor: e.proveedor,
         Combustible: e.tipo_combustible.replace('_', ' '),
         'Galones': e.volumen_litros, 'Precio por galón (Q)': e.precio_por_litro,
@@ -234,7 +249,7 @@ export default function Admin({ session }) {
       const { data } = await supabase.from('facturas')
         .select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
         .eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false })
-      datos = (data || []).map(f => ({
+      const datos = (data || []).map(f => ({
         'No. Factura': f.numero_factura, Proveedor: f.proveedor,
         'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
         'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas || ''
@@ -246,49 +261,35 @@ export default function Admin({ session }) {
 
   async function exportarTodaLaRed(tipo) {
     setExportando(`red-${tipo}`)
-    let todasFilas = []
+    const todasFilas = []
     const fecha = new Date().toISOString().split('T')[0]
     for (const est of estaciones) {
       if (tipo === 'ventas') {
         const { data } = await supabase.from('ventas')
-          .select('fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, notas')
+          .select(`fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, ${metodosPago.join(', ')}, notas`)
           .eq('estacion_id', est.id).order('fecha', { ascending: false })
-        ;(data || []).forEach(v => {
-          todasFilas.push({
-            Estacion: est.nombre, Fecha: v.fecha,
-            'Regular (gal)': v.regular_litros, 'Regular (Q)': v.regular_ingresos,
-            'Super (gal)': v.premium_litros, 'Super (Q)': v.premium_ingresos,
-            'Diesel (gal)': v.diesel_litros, 'Diesel (Q)': v.diesel_ingresos,
-            'V-Power (gal)': v.diesel_plus_litros, 'V-Power (Q)': v.diesel_plus_ingresos,
-            'Total Q': parseFloat(v.regular_ingresos) + parseFloat(v.premium_ingresos) + parseFloat(v.diesel_ingresos) + parseFloat(v.diesel_plus_ingresos),
-            Notas: v.notas || ''
-          })
-        })
+        ;(data || []).forEach(v => todasFilas.push(ventaAFila(v, est.nombre)))
       }
       if (tipo === 'entregas') {
         const { data } = await supabase.from('entregas')
           .select('fecha_entrega, proveedor, tipo_combustible, volumen_litros, precio_por_litro, costo_total, estado, notas')
           .eq('estacion_id', est.id).order('fecha_entrega', { ascending: false })
-        ;(data || []).forEach(e => {
-          todasFilas.push({
-            Estacion: est.nombre, Fecha: e.fecha_entrega, Proveedor: e.proveedor,
-            Combustible: e.tipo_combustible.replace('_', ' '),
-            'Galones': e.volumen_litros, 'Precio por galón (Q)': e.precio_por_litro,
-            'Costo total (Q)': e.costo_total, Estado: e.estado, Notas: e.notas || ''
-          })
-        })
+        ;(data || []).forEach(e => todasFilas.push({
+          Estacion: est.nombre, Fecha: e.fecha_entrega, Proveedor: e.proveedor,
+          Combustible: e.tipo_combustible.replace('_', ' '),
+          'Galones': e.volumen_litros, 'Precio por galón (Q)': e.precio_por_litro,
+          'Costo total (Q)': e.costo_total, Estado: e.estado, Notas: e.notas || ''
+        }))
       }
       if (tipo === 'facturas') {
         const { data } = await supabase.from('facturas')
           .select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
           .eq('estacion_id', est.id).order('fecha_emision', { ascending: false })
-        ;(data || []).forEach(f => {
-          todasFilas.push({
-            Estacion: est.nombre, 'No. Factura': f.numero_factura, Proveedor: f.proveedor,
-            'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
-            'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas || ''
-          })
-        })
+        ;(data || []).forEach(f => todasFilas.push({
+          Estacion: est.nombre, 'No. Factura': f.numero_factura, Proveedor: f.proveedor,
+          'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
+          'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas || ''
+        }))
       }
     }
     descargarCSV(todasFilas, `${tipo}_todas_las_estaciones_${fecha}.csv`)
@@ -359,25 +360,33 @@ export default function Admin({ session }) {
                     <thead>
                       <tr className="border-b border-gray-100">
                         <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
-                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Regular (gal)</th>
-                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Super (gal)</th>
-                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Diesel (gal)</th>
-                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">V-Power (gal)</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Regular</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Super</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Diesel</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">V-Power</th>
                         <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total Q</th>
+                        <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Diferencia</th>
                         <th className="px-4 py-2.5"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {registros.map(v => {
                         const total = v.regular_ingresos + v.premium_ingresos + v.diesel_ingresos + v.diesel_plus_ingresos
+                        const cobros = metodosPago.reduce((s, m) => s + (parseFloat(v[m]) || 0), 0)
+                        const dif = total - cobros
                         return (
                           <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="px-4 py-3 text-gray-700">{v.fecha}</td>
-                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.regular_litros).toLocaleString('es-GT')}</td>
-                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.premium_litros).toLocaleString('es-GT')}</td>
-                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.diesel_litros).toLocaleString('es-GT')}</td>
-                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.diesel_plus_litros).toLocaleString('es-GT')}</td>
+                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.regular_litros).toLocaleString('es-GT')} gal</td>
+                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.premium_litros).toLocaleString('es-GT')} gal</td>
+                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.diesel_litros).toLocaleString('es-GT')} gal</td>
+                            <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.diesel_plus_litros).toLocaleString('es-GT')} gal</td>
                             <td className="px-3 py-3 text-right font-medium text-gray-800">Q{Math.round(total).toLocaleString('es-GT')}</td>
+                            <td className="px-3 py-3 text-center">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${Math.abs(dif) < 0.01 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                                {Math.abs(dif) < 0.01 ? 'OK' : `Q${dif.toFixed(2)}`}
+                              </span>
+                            </td>
                             <td className="px-4 py-3 text-right">
                               <button onClick={() => eliminar('ventas', v.id)} disabled={eliminando === v.id}
                                 className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40">
