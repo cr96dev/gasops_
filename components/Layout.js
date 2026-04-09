@@ -26,7 +26,7 @@ export default function Layout({ children, perfil, estacion }) {
 
         {/* Logo */}
         <div className="px-4 py-4 border-b border-gray-100 flex flex-col items-center">
-          <img src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg" alt="Hidrocom" className="h-14 w-auto object-contain mb-2" />
+          <img src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg" alt="Hidrocom" className="h-24 w-full object-contain mb-1" />
           <div className="text-xs text-gray-400 text-center truncate w-full">
             {esAdmin ? 'Administrador' : (estacion?.nombre || '...')}
           </div>
