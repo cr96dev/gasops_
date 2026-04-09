@@ -35,16 +35,15 @@ export default function Admin({ session }) {
     const ayer = getAyer()
     const primerDia = getPrimerDiaMes()
 
-    // Ventas de ayer
     const { data: ventasAyer } = await supabase
       .from('ventas').select('*').eq('fecha', ayer)
     const ventasMap = {}
     ;(ventasAyer || []).forEach(v => { ventasMap[v.estacion_id] = v })
     setResumen(ventasMap)
 
-    // Acumulado mensual
     const { data: ventasMes } = await supabase
-      .from('ventas').select('estacion_id, regular_ingresos, premium_ingresos, diesel_ingresos, diesel_plus_ingresos, regular_litros, premium_litros, diesel_litros, diesel_plus_litros')
+      .from('ventas')
+      .select('estacion_id, regular_ingresos, premium_ingresos, diesel_ingresos, diesel_plus_ingresos, regular_litros, premium_litros, diesel_litros, diesel_plus_litros')
       .gte('fecha', primerDia)
     const mensualMap = {}
     ;(ventasMes || []).forEach(v => {
@@ -140,6 +139,7 @@ export default function Admin({ session }) {
   const totalFacturasPendientes = Object.values(facturas).reduce((s, f) => s + f.total, 0)
   const reportaronAyer = estaciones.filter(e => resumen[e.id]).length
   const mesActual = new Date().toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
+  const diasTranscurridos = new Date().getDate() - 1
 
   return (
     <Layout perfil={perfil} estacion={null}>
@@ -290,7 +290,6 @@ export default function Admin({ session }) {
               </div>
             </div>
 
-            {/* Métricas de ayer */}
             <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Ayer</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="bg-gray-50 rounded-xl p-4">
@@ -315,7 +314,6 @@ export default function Admin({ session }) {
               </div>
             </div>
 
-            {/* Métricas del mes */}
             <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide capitalize">{mesActual}</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="bg-blue-50 rounded-xl p-4">
@@ -330,13 +328,13 @@ export default function Admin({ session }) {
               </div>
               <div className="bg-blue-50 rounded-xl p-4">
                 <div className="text-xs text-blue-600 mb-1">Días registrados</div>
-                <div className="text-2xl font-medium text-blue-800">{new Date().getDate() - 1}</div>
-                <div className="text-xs text-blue-400 mt-1">De {new Date().getDate() - 1} días transcurridos</div>
+                <div className="text-2xl font-medium text-blue-800">{diasTranscurridos}</div>
+                <div className="text-xs text-blue-400 mt-1">Días transcurridos</div>
               </div>
               <div className="bg-blue-50 rounded-xl p-4">
                 <div className="text-xs text-blue-600 mb-1">Promedio diario</div>
                 <div className="text-2xl font-medium text-blue-800">
-                  Q{new Date().getDate() > 1 ? Math.round(totalMensual / (new Date().getDate() - 1)).toLocaleString('es-GT') : '—'}
+                  {diasTranscurridos > 0 ? `Q${Math.round(totalMensual / diasTranscurridos).toLocaleString('es-GT')}` : '—'}
                 </div>
                 <div className="text-xs text-blue-400 mt-1">Por día red completa</div>
               </div>
@@ -387,12 +385,8 @@ export default function Admin({ session }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {estaciones.length === 0 && (
-                      <tr><td colSpan={4} className="px-5 py-6 text-center text-xs text-gray-400">Sin datos</td></tr>
-                    )}
                     {estaciones.map(est => {
                       const m = mensual[est.id]
-                      const dias = new Date().getDate() - 1
                       return (
                         <tr key={est.id} className="border-b border-gray-50 hover:bg-gray-50">
                           <td className="px-5 py-3 font-medium text-gray-800">{est.nombre}</td>
@@ -403,7 +397,7 @@ export default function Admin({ session }) {
                             {m ? Math.round(m.galones).toLocaleString('es-GT') : '—'}
                           </td>
                           <td className="px-5 py-3 text-right text-gray-500">
-                            {m && dias > 0 ? `Q${Math.round(m.ingresos / dias).toLocaleString('es-GT')}` : '—'}
+                            {m && diasTranscurridos > 0 ? `Q${Math.round(m.ingresos / diasTranscurridos).toLocaleString('es-GT')}` : '—'}
                           </td>
                         </tr>
                       )
@@ -413,7 +407,7 @@ export default function Admin({ session }) {
                       <td className="px-3 py-3 text-right font-medium text-blue-800">Q{Math.round(totalMensual).toLocaleString('es-GT')}</td>
                       <td className="px-3 py-3 text-right font-medium text-blue-800">{Math.round(totalGalonesMes).toLocaleString('es-GT')}</td>
                       <td className="px-5 py-3 text-right font-medium text-blue-800">
-                        {new Date().getDate() > 1 ? `Q${Math.round(totalMensual / (new Date().getDate() - 1)).toLocaleString('es-GT')}` : '—'}
+                        {diasTranscurridos > 0 ? `Q${Math.round(totalMensual / diasTranscurridos).toLocaleString('es-GT')}` : '—'}
                       </td>
                     </tr>
                   </tbody>
