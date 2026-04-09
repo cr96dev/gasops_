@@ -4,63 +4,86 @@ import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 
 function TanquesEstacion({ estacion }) {
-  const [tanques, setTanques] = useState([])
+  const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
-  const tiposTanque = [
-    { key: 'vpower', label: 'V-Power', color: '#DC2626' },
-    { key: 'super', label: 'Super', color: '#16A34A' },
-    { key: 'regular', label: 'Regular', color: '#CA8A04' },
-    { key: 'diesel', label: 'Diesel', color: '#1C1917' },
-  ]
+  const [abierto, setAbierto] = useState(false)
 
-  useEffect(() => {
-    supabase.from('tanques').select('*').eq('estacion_id', estacion.id).then(({ data }) => {
-      const map = {}
-      ;(data || []).forEach(t => { map[t.tipo] = t })
-      setTanques(map)
-      setLoading(false)
-    })
-  }, [estacion.id])
+  const tipoColor = { vpower: '#DC2626', super: '#16A34A', regular: '#CA8A04', diesel: '#1C1917' }
+  const tipoLabel = { vpower: 'V-Power', super: 'Super', regular: 'Regular', diesel: 'Diesel' }
 
-  if (loading) return null
+  async function cargar() {
+    if (abierto) { setAbierto(false); return }
+    setLoading(true)
+    setAbierto(true)
+    const { data } = await supabase.from('tanques_historial')
+      .select('*')
+      .eq('estacion_id', estacion.id)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    setHistorial(data || [])
+    setLoading(false)
+  }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div>
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <button onClick={cargar}
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+        <div className="text-left">
           <div className="text-sm font-medium text-gray-800">{estacion.nombre}</div>
           <div className="text-xs text-gray-400">{estacion.zona}</div>
         </div>
-      </div>
-      <div className="grid grid-cols-4 gap-3">
-        {tiposTanque.map(tipo => {
-          const t = tanques[tipo.key]
-          const pct = t?.capacidad_galones > 0 ? Math.round((t.nivel_galones / t.capacidad_galones) * 100) : 0
-          return (
-            <div key={tipo.key} className="text-center">
-              <div className="relative mx-auto" style={{ width: 70, height: 70 }}>
-                <svg width="70" height="70" style={{ transform: 'rotate(-90deg)' }}>
-                  <circle cx="35" cy="35" r="28" fill="none" stroke="#E5E7EB" strokeWidth="7" />
-                  <circle cx="35" cy="35" r="28" fill="none"
-                    stroke={pct < 20 ? '#DC2626' : pct < 40 ? '#CA8A04' : tipo.color}
-                    strokeWidth="7"
-                    strokeDasharray={2 * Math.PI * 28}
-                    strokeDashoffset={2 * Math.PI * 28 - (pct / 100) * 2 * Math.PI * 28}
-                    strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-semibold" style={{ color: tipo.color }}>{t ? `${pct}%` : '—'}</span>
-                </div>
-              </div>
-              <div className="text-xs font-medium mt-1" style={{ color: tipo.color }}>{tipo.label}</div>
-              <div className="text-xs text-gray-400">{t ? `${Math.round(t.nivel_galones).toLocaleString('es-GT')} gal` : 'Sin datos'}</div>
-            </div>
-          )
-        })}
-      </div>
+        <span className="text-xs text-blue-500">{abierto ? '▲ Cerrar' : '▼ Ver historial'}</span>
+      </button>
+
+      {abierto && (
+        <div className="border-t border-gray-100">
+          {loading ? (
+            <div className="px-5 py-4 text-xs text-gray-400">Cargando...</div>
+          ) : historial.length === 0 ? (
+            <div className="px-5 py-4 text-xs text-gray-400">Sin registros de tanques aún</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-5 py-2 text-left text-xs text-gray-400 font-normal">Fecha y hora</th>
+                  <th className="px-3 py-2 text-left text-xs text-gray-400 font-normal">Combustible</th>
+                  <th className="px-3 py-2 text-right text-xs text-gray-400 font-normal">Nivel (gal)</th>
+                  <th className="px-3 py-2 text-right text-xs text-gray-400 font-normal">Capacidad</th>
+                  <th className="px-5 py-2 text-right text-xs text-gray-400 font-normal">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historial.map(h => {
+                  const pct = h.capacidad_galones > 0 ? Math.round((h.nivel_galones / h.capacidad_galones) * 100) : 0
+                  const fecha = new Date(h.created_at).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })
+                  return (
+                    <tr key={h.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-5 py-2.5 text-gray-600 text-xs">{fecha}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: tipoColor[h.tipo] }}></div>
+                          <span className="text-xs text-gray-700">{tipoLabel[h.tipo]}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs text-gray-700">{parseFloat(h.nivel_galones).toLocaleString('es-GT')}</td>
+                      <td className="px-3 py-2.5 text-right text-xs text-gray-500">{parseFloat(h.capacidad_galones).toLocaleString('es-GT')}</td>
+                      <td className="px-5 py-2.5 text-right">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${pct < 20 ? 'bg-red-50 text-red-600' : pct < 40 ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>
+                          {pct}%
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   )
 }
+
 export default function Admin({ session }) {
   const router = useRouter()
   const [perfil, setPerfil] = useState(null)
@@ -181,55 +204,43 @@ export default function Admin({ session }) {
     const fecha = new Date().toISOString().split('T')[0]
 
     if (tipo === 'ventas') {
-      const { data } = await supabase.from('ventas').select('fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, notas')
+      const { data } = await supabase.from('ventas')
+        .select('fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, notas')
         .eq('estacion_id', estacion.id).order('fecha', { ascending: false })
       datos = (data || []).map(v => ({
         Fecha: v.fecha,
-        'Regular (gal)': v.regular_litros,
-        'Regular (Q)': v.regular_ingresos,
-        'Super (gal)': v.premium_litros,
-        'Super (Q)': v.premium_ingresos,
-        'Diesel (gal)': v.diesel_litros,
-        'Diesel (Q)': v.diesel_ingresos,
-        'V-Power (gal)': v.diesel_plus_litros,
-        'V-Power (Q)': v.diesel_plus_ingresos,
+        'Regular (gal)': v.regular_litros, 'Regular (Q)': v.regular_ingresos,
+        'Super (gal)': v.premium_litros, 'Super (Q)': v.premium_ingresos,
+        'Diesel (gal)': v.diesel_litros, 'Diesel (Q)': v.diesel_ingresos,
+        'V-Power (gal)': v.diesel_plus_litros, 'V-Power (Q)': v.diesel_plus_ingresos,
         'Total Q': parseFloat(v.regular_ingresos) + parseFloat(v.premium_ingresos) + parseFloat(v.diesel_ingresos) + parseFloat(v.diesel_plus_ingresos),
         Notas: v.notas || ''
       }))
       descargarCSV(datos, `ventas_${nombre}_${fecha}.csv`)
     }
-
     if (tipo === 'entregas') {
-      const { data } = await supabase.from('entregas').select('fecha_entrega, proveedor, tipo_combustible, volumen_litros, precio_por_litro, costo_total, estado, notas')
+      const { data } = await supabase.from('entregas')
+        .select('fecha_entrega, proveedor, tipo_combustible, volumen_litros, precio_por_litro, costo_total, estado, notas')
         .eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false })
       datos = (data || []).map(e => ({
-        Fecha: e.fecha_entrega,
-        Proveedor: e.proveedor,
+        Fecha: e.fecha_entrega, Proveedor: e.proveedor,
         Combustible: e.tipo_combustible.replace('_', ' '),
-        'Galones': e.volumen_litros,
-        'Precio por galón (Q)': e.precio_por_litro,
-        'Costo total (Q)': e.costo_total,
-        Estado: e.estado,
-        Notas: e.notas || ''
+        'Galones': e.volumen_litros, 'Precio por galón (Q)': e.precio_por_litro,
+        'Costo total (Q)': e.costo_total, Estado: e.estado, Notas: e.notas || ''
       }))
       descargarCSV(datos, `entregas_${nombre}_${fecha}.csv`)
     }
-
     if (tipo === 'facturas') {
-      const { data } = await supabase.from('facturas').select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
+      const { data } = await supabase.from('facturas')
+        .select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
         .eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false })
       datos = (data || []).map(f => ({
-        'No. Factura': f.numero_factura,
-        Proveedor: f.proveedor,
-        'Fecha emisión': f.fecha_emision,
-        'Fecha vencimiento': f.fecha_vencimiento,
-        'Monto (Q)': f.monto,
-        Estado: f.estado,
-        Notas: f.notas || ''
+        'No. Factura': f.numero_factura, Proveedor: f.proveedor,
+        'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
+        'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas || ''
       }))
       descargarCSV(datos, `facturas_${nombre}_${fecha}.csv`)
     }
-
     setExportando(null)
   }
 
@@ -237,7 +248,6 @@ export default function Admin({ session }) {
     setExportando(`red-${tipo}`)
     let todasFilas = []
     const fecha = new Date().toISOString().split('T')[0]
-
     for (const est of estaciones) {
       if (tipo === 'ventas') {
         const { data } = await supabase.from('ventas')
@@ -245,16 +255,11 @@ export default function Admin({ session }) {
           .eq('estacion_id', est.id).order('fecha', { ascending: false })
         ;(data || []).forEach(v => {
           todasFilas.push({
-            Estacion: est.nombre,
-            Fecha: v.fecha,
-            'Regular (gal)': v.regular_litros,
-            'Regular (Q)': v.regular_ingresos,
-            'Super (gal)': v.premium_litros,
-            'Super (Q)': v.premium_ingresos,
-            'Diesel (gal)': v.diesel_litros,
-            'Diesel (Q)': v.diesel_ingresos,
-            'V-Power (gal)': v.diesel_plus_litros,
-            'V-Power (Q)': v.diesel_plus_ingresos,
+            Estacion: est.nombre, Fecha: v.fecha,
+            'Regular (gal)': v.regular_litros, 'Regular (Q)': v.regular_ingresos,
+            'Super (gal)': v.premium_litros, 'Super (Q)': v.premium_ingresos,
+            'Diesel (gal)': v.diesel_litros, 'Diesel (Q)': v.diesel_ingresos,
+            'V-Power (gal)': v.diesel_plus_litros, 'V-Power (Q)': v.diesel_plus_ingresos,
             'Total Q': parseFloat(v.regular_ingresos) + parseFloat(v.premium_ingresos) + parseFloat(v.diesel_ingresos) + parseFloat(v.diesel_plus_ingresos),
             Notas: v.notas || ''
           })
@@ -266,15 +271,10 @@ export default function Admin({ session }) {
           .eq('estacion_id', est.id).order('fecha_entrega', { ascending: false })
         ;(data || []).forEach(e => {
           todasFilas.push({
-            Estacion: est.nombre,
-            Fecha: e.fecha_entrega,
-            Proveedor: e.proveedor,
+            Estacion: est.nombre, Fecha: e.fecha_entrega, Proveedor: e.proveedor,
             Combustible: e.tipo_combustible.replace('_', ' '),
-            'Galones': e.volumen_litros,
-            'Precio por galón (Q)': e.precio_por_litro,
-            'Costo total (Q)': e.costo_total,
-            Estado: e.estado,
-            Notas: e.notas || ''
+            'Galones': e.volumen_litros, 'Precio por galón (Q)': e.precio_por_litro,
+            'Costo total (Q)': e.costo_total, Estado: e.estado, Notas: e.notas || ''
           })
         })
       }
@@ -284,19 +284,13 @@ export default function Admin({ session }) {
           .eq('estacion_id', est.id).order('fecha_emision', { ascending: false })
         ;(data || []).forEach(f => {
           todasFilas.push({
-            Estacion: est.nombre,
-            'No. Factura': f.numero_factura,
-            Proveedor: f.proveedor,
-            'Fecha emisión': f.fecha_emision,
-            'Fecha vencimiento': f.fecha_vencimiento,
-            'Monto (Q)': f.monto,
-            Estado: f.estado,
-            Notas: f.notas || ''
+            Estacion: est.nombre, 'No. Factura': f.numero_factura, Proveedor: f.proveedor,
+            'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
+            'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas || ''
           })
         })
       }
     }
-
     descargarCSV(todasFilas, `${tipo}_todas_las_estaciones_${fecha}.csv`)
     setExportando(null)
   }
@@ -359,9 +353,7 @@ export default function Admin({ session }) {
               <div className="text-sm text-gray-400 py-4">Cargando registros...</div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                {registros.length === 0 && (
-                  <div className="px-5 py-6 text-center text-xs text-gray-400">Sin registros</div>
-                )}
+                {registros.length === 0 && <div className="px-5 py-6 text-center text-xs text-gray-400">Sin registros</div>}
                 {vistaDetalle === 'ventas' && registros.length > 0 && (
                   <table className="w-full text-sm">
                     <thead>
@@ -541,10 +533,10 @@ export default function Admin({ session }) {
               </div>
             </div>
 
-            <div className="flex gap-1 mb-4 border-b border-gray-100">
+            <div className="flex gap-1 mb-4 border-b border-gray-100 overflow-x-auto">
               {[['ayer', 'Ventas de ayer'], ['mensual', 'Acumulado mensual'], ['tanques', 'Tanques'], ['gestionar', 'Gestionar registros'], ['facturas', 'Facturas pendientes']].map(([key, label]) => (
                 <button key={key} onClick={() => setTab(key)}
-                  className={`px-4 py-2 text-sm border-b-2 transition-colors ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                  className={`px-4 py-2 text-sm border-b-2 transition-colors whitespace-nowrap ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {label}
                 </button>
               ))}
@@ -608,12 +600,21 @@ export default function Admin({ session }) {
               </div>
             )}
 
+            {tab === 'tanques' && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-400 mb-3">Haz clic en cada estación para ver su historial de niveles de tanques.</p>
+                {estaciones.map(est => (
+                  <TanquesEstacion key={est.id} estacion={est} />
+                ))}
+              </div>
+            )}
+
             {tab === 'gestionar' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs text-gray-400">Exporta, visualiza y elimina registros por estación.</p>
                   <div className="flex gap-2">
-                    <span className="text-xs text-gray-400 self-center">Exportar toda la red:</span>
+                    <span className="text-xs text-gray-400 self-center">Toda la red:</span>
                     {['ventas', 'entregas', 'facturas'].map(tipo => (
                       <button key={tipo} onClick={() => exportarTodaLaRed(tipo)}
                         disabled={exportando === `red-${tipo}`}
