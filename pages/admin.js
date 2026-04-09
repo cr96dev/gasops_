@@ -3,6 +3,64 @@ import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 
+function TanquesEstacion({ estacion }) {
+  const [tanques, setTanques] = useState([])
+  const [loading, setLoading] = useState(true)
+  const tiposTanque = [
+    { key: 'vpower', label: 'V-Power', color: '#DC2626' },
+    { key: 'super', label: 'Super', color: '#16A34A' },
+    { key: 'regular', label: 'Regular', color: '#CA8A04' },
+    { key: 'diesel', label: 'Diesel', color: '#1C1917' },
+  ]
+
+  useEffect(() => {
+    supabase.from('tanques').select('*').eq('estacion_id', estacion.id).then(({ data }) => {
+      const map = {}
+      ;(data || []).forEach(t => { map[t.tipo] = t })
+      setTanques(map)
+      setLoading(false)
+    })
+  }, [estacion.id])
+
+  if (loading) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="text-sm font-medium text-gray-800">{estacion.nombre}</div>
+          <div className="text-xs text-gray-400">{estacion.zona}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        {tiposTanque.map(tipo => {
+          const t = tanques[tipo.key]
+          const pct = t?.capacidad_galones > 0 ? Math.round((t.nivel_galones / t.capacidad_galones) * 100) : 0
+          return (
+            <div key={tipo.key} className="text-center">
+              <div className="relative mx-auto" style={{ width: 70, height: 70 }}>
+                <svg width="70" height="70" style={{ transform: 'rotate(-90deg)' }}>
+                  <circle cx="35" cy="35" r="28" fill="none" stroke="#E5E7EB" strokeWidth="7" />
+                  <circle cx="35" cy="35" r="28" fill="none"
+                    stroke={pct < 20 ? '#DC2626' : pct < 40 ? '#CA8A04' : tipo.color}
+                    strokeWidth="7"
+                    strokeDasharray={2 * Math.PI * 28}
+                    strokeDashoffset={2 * Math.PI * 28 - (pct / 100) * 2 * Math.PI * 28}
+                    strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-semibold" style={{ color: tipo.color }}>{t ? `${pct}%` : '—'}</span>
+                </div>
+              </div>
+              <div className="text-xs font-medium mt-1" style={{ color: tipo.color }}>{tipo.label}</div>
+              <div className="text-xs text-gray-400">{t ? `${Math.round(t.nivel_galones).toLocaleString('es-GT')} gal` : 'Sin datos'}</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 export default function Admin({ session }) {
   const router = useRouter()
   const [perfil, setPerfil] = useState(null)
@@ -484,7 +542,7 @@ export default function Admin({ session }) {
             </div>
 
             <div className="flex gap-1 mb-4 border-b border-gray-100">
-              {[['ayer', 'Ventas de ayer'], ['mensual', 'Acumulado mensual'], ['gestionar', 'Gestionar registros'], ['facturas', 'Facturas pendientes']].map(([key, label]) => (
+              {[['ayer', 'Ventas de ayer'], ['mensual', 'Acumulado mensual'], ['tanques', 'Tanques'], ['gestionar', 'Gestionar registros'], ['facturas', 'Facturas pendientes']].map(([key, label]) => (
                 <button key={key} onClick={() => setTab(key)}
                   className={`px-4 py-2 text-sm border-b-2 transition-colors ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {label}
