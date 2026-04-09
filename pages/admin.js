@@ -19,6 +19,7 @@ export default function Admin({ session }) {
   const [loadingRegistros, setLoadingRegistros] = useState(false)
   const [eliminando, setEliminando] = useState(null)
   const [segundos, setSegundos] = useState(30)
+  const [exportando, setExportando] = useState(null)
 
   const getAyer = () => {
     const d = new Date()
@@ -34,15 +35,11 @@ export default function Admin({ session }) {
   const cargarDatos = useCallback(async () => {
     const ayer = getAyer()
     const primerDia = getPrimerDiaMes()
-
-    const { data: ventasAyer } = await supabase
-      .from('ventas').select('*').eq('fecha', ayer)
+    const { data: ventasAyer } = await supabase.from('ventas').select('*').eq('fecha', ayer)
     const ventasMap = {}
     ;(ventasAyer || []).forEach(v => { ventasMap[v.estacion_id] = v })
     setResumen(ventasMap)
-
-    const { data: ventasMes } = await supabase
-      .from('ventas')
+    const { data: ventasMes } = await supabase.from('ventas')
       .select('estacion_id, regular_ingresos, premium_ingresos, diesel_ingresos, diesel_plus_ingresos, regular_litros, premium_litros, diesel_litros, diesel_plus_litros')
       .gte('fecha', primerDia)
     const mensualMap = {}
@@ -52,7 +49,6 @@ export default function Admin({ session }) {
       mensualMap[v.estacion_id].galones += v.regular_litros + v.premium_litros + v.diesel_litros + v.diesel_plus_litros
     })
     setMensual(mensualMap)
-
     setUltimaActualizacion(new Date().toLocaleTimeString('es-GT'))
     setSegundos(30)
   }, [])
@@ -99,6 +95,153 @@ export default function Admin({ session }) {
     }, 1000)
     return () => clearInterval(tick)
   }, [perfil])
+
+  function descargarCSV(datos, nombreArchivo) {
+    if (!datos || datos.length === 0) return
+    const keys = Object.keys(datos[0])
+    const encabezado = keys.join(',')
+    const filas = datos.map(row =>
+      keys.map(k => {
+        const val = row[k] === null || row[k] === undefined ? '' : row[k]
+        return `"${String(val).replace(/"/g, '""')}"`
+      }).join(',')
+    )
+    const csv = [encabezado, ...filas].join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nombreArchivo
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function exportar(estacion, tipo) {
+    setExportando(`${estacion.id}-${tipo}`)
+    let datos = []
+    const nombre = estacion.nombre.replace(/\s+/g, '_')
+    const fecha = new Date().toISOString().split('T')[0]
+
+    if (tipo === 'ventas') {
+      const { data } = await supabase.from('ventas').select('fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, notas')
+        .eq('estacion_id', estacion.id).order('fecha', { ascending: false })
+      datos = (data || []).map(v => ({
+        Fecha: v.fecha,
+        'Regular (gal)': v.regular_litros,
+        'Regular (Q)': v.regular_ingresos,
+        'Super (gal)': v.premium_litros,
+        'Super (Q)': v.premium_ingresos,
+        'Diesel (gal)': v.diesel_litros,
+        'Diesel (Q)': v.diesel_ingresos,
+        'V-Power (gal)': v.diesel_plus_litros,
+        'V-Power (Q)': v.diesel_plus_ingresos,
+        'Total Q': parseFloat(v.regular_ingresos) + parseFloat(v.premium_ingresos) + parseFloat(v.diesel_ingresos) + parseFloat(v.diesel_plus_ingresos),
+        Notas: v.notas || ''
+      }))
+      descargarCSV(datos, `ventas_${nombre}_${fecha}.csv`)
+    }
+
+    if (tipo === 'entregas') {
+      const { data } = await supabase.from('entregas').select('fecha_entrega, proveedor, tipo_combustible, volumen_litros, precio_por_litro, costo_total, estado, notas')
+        .eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false })
+      datos = (data || []).map(e => ({
+        Fecha: e.fecha_entrega,
+        Proveedor: e.proveedor,
+        Combustible: e.tipo_combustible.replace('_', ' '),
+        'Galones': e.volumen_litros,
+        'Precio por galón (Q)': e.precio_por_litro,
+        'Costo total (Q)': e.costo_total,
+        Estado: e.estado,
+        Notas: e.notas || ''
+      }))
+      descargarCSV(datos, `entregas_${nombre}_${fecha}.csv`)
+    }
+
+    if (tipo === 'facturas') {
+      const { data } = await supabase.from('facturas').select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
+        .eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false })
+      datos = (data || []).map(f => ({
+        'No. Factura': f.numero_factura,
+        Proveedor: f.proveedor,
+        'Fecha emisión': f.fecha_emision,
+        'Fecha vencimiento': f.fecha_vencimiento,
+        'Monto (Q)': f.monto,
+        Estado: f.estado,
+        Notas: f.notas || ''
+      }))
+      descargarCSV(datos, `facturas_${nombre}_${fecha}.csv`)
+    }
+
+    setExportando(null)
+  }
+
+  async function exportarTodaLaRed(tipo) {
+    setExportando(`red-${tipo}`)
+    let todasFilas = []
+    const fecha = new Date().toISOString().split('T')[0]
+
+    for (const est of estaciones) {
+      if (tipo === 'ventas') {
+        const { data } = await supabase.from('ventas')
+          .select('fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, notas')
+          .eq('estacion_id', est.id).order('fecha', { ascending: false })
+        ;(data || []).forEach(v => {
+          todasFilas.push({
+            Estacion: est.nombre,
+            Fecha: v.fecha,
+            'Regular (gal)': v.regular_litros,
+            'Regular (Q)': v.regular_ingresos,
+            'Super (gal)': v.premium_litros,
+            'Super (Q)': v.premium_ingresos,
+            'Diesel (gal)': v.diesel_litros,
+            'Diesel (Q)': v.diesel_ingresos,
+            'V-Power (gal)': v.diesel_plus_litros,
+            'V-Power (Q)': v.diesel_plus_ingresos,
+            'Total Q': parseFloat(v.regular_ingresos) + parseFloat(v.premium_ingresos) + parseFloat(v.diesel_ingresos) + parseFloat(v.diesel_plus_ingresos),
+            Notas: v.notas || ''
+          })
+        })
+      }
+      if (tipo === 'entregas') {
+        const { data } = await supabase.from('entregas')
+          .select('fecha_entrega, proveedor, tipo_combustible, volumen_litros, precio_por_litro, costo_total, estado, notas')
+          .eq('estacion_id', est.id).order('fecha_entrega', { ascending: false })
+        ;(data || []).forEach(e => {
+          todasFilas.push({
+            Estacion: est.nombre,
+            Fecha: e.fecha_entrega,
+            Proveedor: e.proveedor,
+            Combustible: e.tipo_combustible.replace('_', ' '),
+            'Galones': e.volumen_litros,
+            'Precio por galón (Q)': e.precio_por_litro,
+            'Costo total (Q)': e.costo_total,
+            Estado: e.estado,
+            Notas: e.notas || ''
+          })
+        })
+      }
+      if (tipo === 'facturas') {
+        const { data } = await supabase.from('facturas')
+          .select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
+          .eq('estacion_id', est.id).order('fecha_emision', { ascending: false })
+        ;(data || []).forEach(f => {
+          todasFilas.push({
+            Estacion: est.nombre,
+            'No. Factura': f.numero_factura,
+            Proveedor: f.proveedor,
+            'Fecha emisión': f.fecha_emision,
+            'Fecha vencimiento': f.fecha_vencimiento,
+            'Monto (Q)': f.monto,
+            Estado: f.estado,
+            Notas: f.notas || ''
+          })
+        })
+      }
+    }
+
+    descargarCSV(todasFilas, `${tipo}_todas_las_estaciones_${fecha}.csv`)
+    setExportando(null)
+  }
 
   async function abrirDetalle(estacion, tipo) {
     setEstacionSeleccionada(estacion)
@@ -327,9 +470,9 @@ export default function Admin({ session }) {
                 <div className="text-xs text-blue-400 mt-1">Acumulado red</div>
               </div>
               <div className="bg-blue-50 rounded-xl p-4">
-                <div className="text-xs text-blue-600 mb-1">Días registrados</div>
+                <div className="text-xs text-blue-600 mb-1">Días transcurridos</div>
                 <div className="text-2xl font-medium text-blue-800">{diasTranscurridos}</div>
-                <div className="text-xs text-blue-400 mt-1">Días transcurridos</div>
+                <div className="text-xs text-blue-400 mt-1">Del mes actual</div>
               </div>
               <div className="bg-blue-50 rounded-xl p-4">
                 <div className="text-xs text-blue-600 mb-1">Promedio diario</div>
@@ -390,15 +533,9 @@ export default function Admin({ session }) {
                       return (
                         <tr key={est.id} className="border-b border-gray-50 hover:bg-gray-50">
                           <td className="px-5 py-3 font-medium text-gray-800">{est.nombre}</td>
-                          <td className="px-3 py-3 text-right text-gray-800 font-medium">
-                            {m ? `Q${Math.round(m.ingresos).toLocaleString('es-GT')}` : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-right text-gray-600">
-                            {m ? Math.round(m.galones).toLocaleString('es-GT') : '—'}
-                          </td>
-                          <td className="px-5 py-3 text-right text-gray-500">
-                            {m && diasTranscurridos > 0 ? `Q${Math.round(m.ingresos / diasTranscurridos).toLocaleString('es-GT')}` : '—'}
-                          </td>
+                          <td className="px-3 py-3 text-right text-gray-800 font-medium">{m ? `Q${Math.round(m.ingresos).toLocaleString('es-GT')}` : '—'}</td>
+                          <td className="px-3 py-3 text-right text-gray-600">{m ? Math.round(m.galones).toLocaleString('es-GT') : '—'}</td>
+                          <td className="px-5 py-3 text-right text-gray-500">{m && diasTranscurridos > 0 ? `Q${Math.round(m.ingresos / diasTranscurridos).toLocaleString('es-GT')}` : '—'}</td>
                         </tr>
                       )
                     })}
@@ -406,9 +543,7 @@ export default function Admin({ session }) {
                       <td className="px-5 py-3 font-medium text-blue-800">Total red</td>
                       <td className="px-3 py-3 text-right font-medium text-blue-800">Q{Math.round(totalMensual).toLocaleString('es-GT')}</td>
                       <td className="px-3 py-3 text-right font-medium text-blue-800">{Math.round(totalGalonesMes).toLocaleString('es-GT')}</td>
-                      <td className="px-5 py-3 text-right font-medium text-blue-800">
-                        {diasTranscurridos > 0 ? `Q${Math.round(totalMensual / diasTranscurridos).toLocaleString('es-GT')}` : '—'}
-                      </td>
+                      <td className="px-5 py-3 text-right font-medium text-blue-800">{diasTranscurridos > 0 ? `Q${Math.round(totalMensual / diasTranscurridos).toLocaleString('es-GT')}` : '—'}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -417,20 +552,42 @@ export default function Admin({ session }) {
 
             {tab === 'gestionar' && (
               <div className="space-y-3">
-                <p className="text-xs text-gray-400 mb-3">Selecciona una estación y el tipo de registro para ver y eliminar entradas.</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-gray-400">Exporta, visualiza y elimina registros por estación.</p>
+                  <div className="flex gap-2">
+                    <span className="text-xs text-gray-400 self-center">Exportar toda la red:</span>
+                    {['ventas', 'entregas', 'facturas'].map(tipo => (
+                      <button key={tipo} onClick={() => exportarTodaLaRed(tipo)}
+                        disabled={exportando === `red-${tipo}`}
+                        className="text-xs px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700 disabled:opacity-40 capitalize">
+                        {exportando === `red-${tipo}` ? '...' : `↓ ${tipo}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {estaciones.map(est => (
-                  <div key={est.id} className="bg-white rounded-xl border border-gray-100 px-5 py-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-gray-800">{est.nombre}</div>
-                      <div className="text-xs text-gray-400">{est.zona}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => abrirDetalle(est, 'ventas')}
-                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">Ventas</button>
-                      <button onClick={() => abrirDetalle(est, 'entregas')}
-                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">Entregas</button>
-                      <button onClick={() => abrirDetalle(est, 'facturas')}
-                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">Facturas</button>
+                  <div key={est.id} className="bg-white rounded-xl border border-gray-100 px-5 py-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-gray-800">{est.nombre}</div>
+                        <div className="text-xs text-gray-400">{est.zona}</div>
+                      </div>
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {['ventas', 'entregas', 'facturas'].map(tipo => (
+                          <div key={tipo} className="flex gap-1">
+                            <button onClick={() => abrirDetalle(est, tipo)}
+                              className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 capitalize">
+                              {tipo}
+                            </button>
+                            <button onClick={() => exportar(est, tipo)}
+                              disabled={exportando === `${est.id}-${tipo}`}
+                              className="text-xs px-2 py-1.5 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700 disabled:opacity-40"
+                              title={`Exportar ${tipo} a CSV`}>
+                              {exportando === `${est.id}-${tipo}` ? '...' : '↓'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))}
