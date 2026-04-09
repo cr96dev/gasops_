@@ -17,6 +17,7 @@ export default function Admin({ session }) {
   const [registros, setRegistros] = useState([])
   const [loadingRegistros, setLoadingRegistros] = useState(false)
   const [eliminando, setEliminando] = useState(null)
+  const [segundos, setSegundos] = useState(30)
 
   const cargarVentas = useCallback(async () => {
     const today = new Date().toISOString().split('T')[0]
@@ -25,6 +26,7 @@ export default function Admin({ session }) {
     ;(ventas || []).forEach(v => { ventasMap[v.estacion_id] = v })
     setResumen(ventasMap)
     setUltimaActualizacion(new Date().toLocaleTimeString('es-GT'))
+    setSegundos(30)
   }, [])
 
   const cargarFacturasResumen = useCallback(async () => {
@@ -53,16 +55,24 @@ export default function Admin({ session }) {
     init()
   }, [session])
 
+  // Auto-refresh cada 30 segundos
   useEffect(() => {
     if (!perfil) return
-    const channel = supabase.channel('ventas-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas' }, () => cargarVentas())
-      .subscribe()
-    const channelF = supabase.channel('facturas-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas' }, () => cargarFacturasResumen())
-      .subscribe()
-    return () => { supabase.removeChannel(channel); supabase.removeChannel(channelF) }
+    const intervalo = setInterval(async () => {
+      await cargarVentas()
+      await cargarFacturasResumen()
+    }, 30000)
+    return () => clearInterval(intervalo)
   }, [perfil, cargarVentas, cargarFacturasResumen])
+
+  // Contador regresivo
+  useEffect(() => {
+    if (!perfil) return
+    const tick = setInterval(() => {
+      setSegundos(s => s > 0 ? s - 1 : 30)
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [perfil])
 
   async function abrirDetalle(estacion, tipo) {
     setEstacionSeleccionada(estacion)
@@ -114,7 +124,6 @@ export default function Admin({ session }) {
                 {vistaDetalle.charAt(0).toUpperCase() + vistaDetalle.slice(1)} — {estacionSeleccionada?.nombre}
               </h2>
             </div>
-
             {loadingRegistros ? (
               <div className="text-sm text-gray-400 py-4">Cargando registros...</div>
             ) : (
@@ -122,7 +131,6 @@ export default function Admin({ session }) {
                 {registros.length === 0 && (
                   <div className="px-5 py-6 text-center text-xs text-gray-400">Sin registros</div>
                 )}
-
                 {vistaDetalle === 'ventas' && registros.length > 0 && (
                   <table className="w-full text-sm">
                     <thead>
@@ -159,7 +167,6 @@ export default function Admin({ session }) {
                     </tbody>
                   </table>
                 )}
-
                 {vistaDetalle === 'entregas' && registros.length > 0 && (
                   <table className="w-full text-sm">
                     <thead>
@@ -191,7 +198,6 @@ export default function Admin({ session }) {
                     </tbody>
                   </table>
                 )}
-
                 {vistaDetalle === 'facturas' && registros.length > 0 && (
                   <table className="w-full text-sm">
                     <thead>
@@ -243,9 +249,13 @@ export default function Admin({ session }) {
               </div>
               <div className="flex items-center gap-3">
                 {ultimaActualizacion && <span className="text-xs text-gray-400">Actualizado: {ultimaActualizacion}</span>}
+                <button onClick={() => { cargarVentas(); cargarFacturasResumen() }}
+                  className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
+                  Actualizar ahora
+                </button>
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-xs text-green-700 font-medium">En vivo</span>
+                  <span className="text-xs text-green-700 font-medium">Auto {segundos}s</span>
                 </div>
               </div>
             </div>
@@ -317,17 +327,11 @@ export default function Admin({ session }) {
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => abrirDetalle(est, 'ventas')}
-                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
-                        Ventas
-                      </button>
+                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">Ventas</button>
                       <button onClick={() => abrirDetalle(est, 'entregas')}
-                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
-                        Entregas
-                      </button>
+                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">Entregas</button>
                       <button onClick={() => abrirDetalle(est, 'facturas')}
-                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
-                        Facturas
-                      </button>
+                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">Facturas</button>
                     </div>
                   </div>
                 ))}
