@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 const navItems = [
   { href: '/dashboard',   label: 'Inicio',       icon: 'M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 3h2v-2h-2v-2h-2v2h-2v2h2v2h2v-2z' },
   { href: '/ventas',      label: 'Ventas',        icon: 'M3 17l4-8 4 4 4-7 4 6' },
+  { href: '/tanques',     label: 'Tanques',       icon: 'M12 2C8 2 4 5 4 9c0 5 8 13 8 13s8-8 8-13c0-4-4-7-8-7zm0 9a2 2 0 110-4 2 2 0 010 4z' },
   { href: '/inventario',  label: 'Inventario',    icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4V5z' },
   { href: '/entregas',    label: 'Entregas',      icon: 'M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z' },
   { href: '/facturacion', label: 'Facturación',   icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z' },
