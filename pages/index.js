@@ -1,7 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/router'
-import { useEffect } from 'react'
 
 export default function Login({ session }) {
   const router = useRouter()
@@ -27,40 +26,26 @@ export default function Login({ session }) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl border border-gray-200 p-8 w-full max-w-sm">
-        <div className="mb-8">
-          <h1 className="text-xl font-semibold text-gray-900">GasOps</h1>
-          <p className="text-sm text-gray-500 mt-1">Sistema de gestión de estaciones</p>
+        <div className="flex flex-col items-center mb-8">
+          <img src="/logo.jpg" alt="Hidrocom" className="h-20 w-auto mb-4 object-contain" />
+          <p className="text-sm text-gray-400">Sistema de gestión de estaciones</p>
         </div>
-
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Correo electrónico</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
-              placeholder="gerente@estacion.com"
-            />
+              placeholder="gerente@estacion.com" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
-              placeholder="••••••••"
-            />
+              placeholder="••••••••" />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
+          <button type="submit" disabled={loading}
+            className="w-full bg-blue-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
           </button>
         </form>
