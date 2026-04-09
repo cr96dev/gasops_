@@ -27,7 +27,7 @@ export default function Login({ session }) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl border border-gray-200 p-8 w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <img src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg" alt="Hidrocom" className="h-20 w-auto mb-4 object-contain" />
+          <img src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg" alt="Hidrocom" className="h-32 w-full object-contain mb-4" />
           <p className="text-sm text-gray-400">Sistema de gestión de estaciones</p>
         </div>
         <form onSubmit={handleLogin} className="space-y-4">
