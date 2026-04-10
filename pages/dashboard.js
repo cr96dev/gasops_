@@ -104,7 +104,7 @@ export default function Dashboard({ session }) {
             deltaUp={!!ventas}
           />
           <MetricCard
-            label="Litros vendidos"
+            label="Galones vendidos"
             value={ventas ? totalLitros.toLocaleString('es-GT', { maximumFractionDigits: 0 }) : '—'}
             delta={ventas ? 'Total del día' : ''}
           />
