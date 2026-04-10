@@ -2,17 +2,77 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
+import { useToast, ToastContainer } from '../components/Toast'
+import * as XLSX from 'xlsx'
+
+const PRODUCTOS_CATALOGO = [
+  { sku: 'MPPDVP-43',  nombre: 'Impulse 4T 10W40',                  categoria: 'Aceites 4T',      unidad: 'Litro' },
+  { sku: 'MPPDVP-54',  nombre: 'SYNCHRON ATF FULL',                  categoria: 'ATF',             unidad: 'Litro' },
+  { sku: 'MPPDVP-53',  nombre: 'CUBETA 15W40',                       categoria: 'Aceites Diesel',  unidad: 'Cubeta' },
+  { sku: 'MPPDVP-52',  nombre: 'CUBETA 20W50',                       categoria: 'Aceites Motor',   unidad: 'Cubeta' },
+  { sku: 'MPPDVP-51',  nombre: 'SHELL ADVANCE SAE 10W-40 ULTRA',     categoria: 'Aceites 4T',      unidad: 'Litro' },
+  { sku: 'MPPDVP-50',  nombre: 'PLUMILLAS BOSCH',                    categoria: 'Accesorios',      unidad: 'Par' },
+  { sku: 'MPPDVP-49',  nombre: 'POWER STEERING 12 ONZAS',            categoria: 'Fluidos',         unidad: 'Pinta' },
+  { sku: 'MPPDVP-48',  nombre: 'LIQUIDO DE FRENOS',                  categoria: 'Fluidos',         unidad: 'Pinta' },
+  { sku: 'MPPDVP-47',  nombre: 'REFRIGERANTE TOP GUARD',             categoria: 'Fluidos',         unidad: 'Litro' },
+  { sku: 'MPPDVP-46',  nombre: 'SHELL SPIRAX S5 ATF X',              categoria: 'ATF',             unidad: 'Litro' },
+  { sku: 'MPPDVP-45',  nombre: 'SHELL SPIRAX S3 ATF MD3 LITRO',      categoria: 'ATF',             unidad: 'Litro' },
+  { sku: 'MPPDVP-44',  nombre: 'RIMULA R4X 15W-40 GRIS GALÓN',       categoria: 'Aceites Diesel',  unidad: 'Galón' },
+  { sku: 'MPPDVP-43B', nombre: 'RIMULA R4X 15W-40 GRIS LITRO',       categoria: 'Aceites Diesel',  unidad: 'Litro' },
+  { sku: 'MPPDVP-42',  nombre: 'HELIX ULTRA 5W-40 GALÓN',            categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-41',  nombre: 'HELIX ULTRA 5W-40 LITRO',            categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-40',  nombre: 'HELIX ULTRA 5W-30 GALÓN',            categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-39',  nombre: 'HELIX HX8 5W-30 LITRO',              categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-38',  nombre: 'HELIX ULTRA 5W-30 LITRO',            categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-37',  nombre: 'HELIX HX7 SN 10W-30 AZUL GALÓN',    categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-36',  nombre: 'HELIX HX7 SN 10W-30 AZUL LITRO',    categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-35',  nombre: 'HELIX HX5 20W-50 GALÓN',             categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-34',  nombre: 'HELIX HX5 20W-50 LITRO',             categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-33',  nombre: 'HELIX HX3 25W-60 GALÓN',             categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-32',  nombre: 'HELIX HX3 25W-60 LITRO',             categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-31',  nombre: 'HELIX HX3 SAE 40 GALÓN',             categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-30',  nombre: 'HELIX HX3 SAE 40 LITRO',             categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-29',  nombre: 'SHELL ADVANCE AX5 4T 20W50 LITRO',   categoria: 'Aceites 4T',      unidad: 'Litro' },
+  { sku: 'MPPDVP-28',  nombre: 'SHELL ADVANCE S2 DOS TT LITRO',      categoria: 'Aceites 2T',      unidad: 'Litro' },
+  { sku: 'MPPDVP-27',  nombre: 'TP Fuel Injector PINTA 12 OZ',       categoria: 'Aditivos',        unidad: 'Pinta' },
+  { sku: 'MPPDVP-26',  nombre: 'UNO Impulse 2T LITRO',               categoria: 'Aceites 2T',      unidad: 'Litro' },
+  { sku: 'MPPDVP-25',  nombre: 'FORZA EURO SAE 5W-40 1 LITRO',       categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-24',  nombre: 'UNO ULTRA FULL SYNT 5W-30',          categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-23',  nombre: 'UNO Forza 50 1 LITRO',               categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-22',  nombre: 'UNO Forza 15W-40 1 LITRO',           categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-21',  nombre: 'TP Power Steering F PINTA 12 OZ',    categoria: 'Fluidos',         unidad: 'Pinta' },
+  { sku: 'MPPDVP-20',  nombre: 'TP Brake Fluid PINTA 12 OZ',         categoria: 'Fluidos',         unidad: 'Pinta' },
+  { sku: 'MPPDVP-19',  nombre: 'TP COOLANT 50/50 1 GALON',           categoria: 'Fluidos',         unidad: 'Galón' },
+  { sku: 'MPPDVP-18',  nombre: 'TP COOLANT 50/50 1 LITRO',           categoria: 'Fluidos',         unidad: 'Litro' },
+  { sku: 'MPPDVP-17',  nombre: 'UNO Synchron ATF 1 LITRO',           categoria: 'ATF',             unidad: 'Litro' },
+  { sku: 'MPPDVP-16',  nombre: 'UNO Ultra 40 1 GALON',               categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-15',  nombre: 'UNO Ultra 40 1 LITRO',               categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-14',  nombre: 'UNO Ultra 20W-50 1 GALON',           categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-13',  nombre: 'UNO Ultra 15W-40 1 GALON',           categoria: 'Aceites Diesel',  unidad: 'Galón' },
+  { sku: 'MPPDVP-12',  nombre: 'UNO Ultra 20W-50 1 LITRO',           categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-11',  nombre: 'UNO Impulse 4T 20W-50 1 LITRO',      categoria: 'Aceites 4T',      unidad: 'Litro' },
+  { sku: 'MPPDVP-10',  nombre: 'UNO Ultra 10W-30 GALON',             categoria: 'Aceites Motor',   unidad: 'Galón' },
+  { sku: 'MPPDVP-9',   nombre: 'UNO Ultra 10W-30 1 LITRO',           categoria: 'Aceites Motor',   unidad: 'Litro' },
+  { sku: 'MPPDVP-8',   nombre: 'Prodin Agua Destilada 18oz',         categoria: 'Fluidos',         unidad: 'Unidad' },
+  { sku: 'MPPDVP-7',   nombre: 'Prodin Activador Electrolitico 18oz',categoria: 'Fluidos',         unidad: 'Unidad' },
+  { sku: 'MPPDVP-6',   nombre: 'Garantía x Lluvia',                  categoria: 'Servicios',       unidad: 'Servicio' },
+]
 
 export default function Inventario({ session }) {
   const router = useRouter()
   const [perfil, setPerfil] = useState(null)
   const [estacion, setEstacion] = useState(null)
-  const [items, setItems] = useState([])
+  const [inventario, setInventario] = useState([])
   const [loading, setLoading] = useState(true)
-  const [editando, setEditando] = useState(null)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ producto: '', categoria: '', stock_actual: '', stock_minimo: '', unidad: 'unidades' })
   const [guardando, setGuardando] = useState(false)
+  const [tab, setTab] = useState('actual')
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroCat, setFiltroCat] = useState('Todas')
+  const [archivoExcel, setArchivoExcel] = useState(null)
+  const [previaCarga, setPreviaCarga] = useState([])
+  const [cargando, setCargando] = useState(false)
+  const [errorCarga, setErrorCarga] = useState('')
+  const { toasts, toast } = useToast()
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
@@ -23,146 +83,370 @@ export default function Inventario({ session }) {
     const { data: p } = await supabase.from('perfiles').select('*, estaciones(*)').eq('id', session.user.id).single()
     setPerfil(p); setEstacion(p?.estaciones)
     if (p?.estacion_id) {
-      const { data } = await supabase.from('inventario').select('*').eq('estacion_id', p.estacion_id).order('categoria').order('producto')
-      setItems(data || [])
+      const { data } = await supabase.from('inventario').select('*')
+        .eq('estacion_id', p.estacion_id).order('producto')
+      setInventario(data || [])
     }
     setLoading(false)
   }
 
-  function statusColor(item) {
-    if (item.stock_actual <= item.stock_minimo) return 'text-red-600 bg-red-50'
-    if (item.stock_actual <= item.stock_minimo * 1.5) return 'text-amber-600 bg-amber-50'
-    return 'text-green-700 bg-green-50'
-  }
-  function statusLabel(item) {
-    if (item.stock_actual <= item.stock_minimo) return 'Bajo'
-    if (item.stock_actual <= item.stock_minimo * 1.5) return 'Monitor'
-    return 'OK'
-  }
-
-  function iniciarEdicion(item) {
-    setEditando(item.id)
-    setForm({ producto: item.producto, categoria: item.categoria || '', stock_actual: item.stock_actual, stock_minimo: item.stock_minimo, unidad: item.unidad })
-    setShowForm(true)
-  }
-
-  function nuevaFila() {
-    setEditando(null)
-    setForm({ producto: '', categoria: '', stock_actual: '', stock_minimo: '', unidad: 'unidades' })
-    setShowForm(true)
+  // Descargar plantilla Excel
+  function descargarPlantilla() {
+    const filas = PRODUCTOS_CATALOGO.map(p => ({
+      SKU: p.sku,
+      Producto: p.nombre,
+      Categoría: p.categoria,
+      'Stock actual': 0,
+      'Stock mínimo': 2,
+      Unidad: p.unidad,
+    }))
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(filas)
+    ws['!cols'] = [{ wch: 14 }, { wch: 40 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventario')
+    XLSX.writeFile(wb, 'plantilla_inventario_hidrocom.xlsx')
+    toast('Plantilla descargada', 'info')
   }
 
-  async function guardar(e) {
-    e.preventDefault()
-    setGuardando(true)
-    const payload = {
-      estacion_id: perfil.estacion_id,
-      producto: form.producto,
-      categoria: form.categoria,
-      stock_actual: parseFloat(form.stock_actual) || 0,
-      stock_minimo: parseFloat(form.stock_minimo) || 0,
-      unidad: form.unidad,
-      updated_at: new Date().toISOString(),
+  // Leer Excel subido
+  function procesarExcel(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setArchivoExcel(file)
+    setErrorCarga('')
+    setPreviaCarga([])
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'binary' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const datos = XLSX.utils.sheet_to_json(ws)
+
+        if (datos.length === 0) {
+          setErrorCarga('El archivo está vacío.')
+          return
+        }
+
+        const filas = datos.map((row, i) => {
+          const producto = row['Producto'] || row['producto'] || ''
+          const sku = row['SKU'] || row['sku'] || ''
+          const categoria = row['Categoría'] || row['Categoria'] || row['categoria'] || 'General'
+          const stockActual = parseFloat(row['Stock actual'] || row['stock_actual'] || 0)
+          const stockMinimo = parseFloat(row['Stock mínimo'] || row['Stock minimo'] || row['stock_minimo'] || 0)
+          const unidad = row['Unidad'] || row['unidad'] || 'Unidad'
+
+          if (!producto) return null
+          return { sku, producto, categoria, stock_actual: stockActual, stock_minimo: stockMinimo, unidad }
+        }).filter(Boolean)
+
+        if (filas.length === 0) {
+          setErrorCarga('No se encontraron productos válidos. Verifica que el archivo tenga la columna "Producto".')
+          return
+        }
+
+        setPreviaCarga(filas)
+      } catch (err) {
+        setErrorCarga(`Error al leer el archivo: ${err.message}`)
+      }
     }
-    if (editando) {
-      await supabase.from('inventario').update(payload).eq('id', editando)
-    } else {
-      await supabase.from('inventario').insert(payload)
+    reader.readAsBinaryString(file)
+  }
+
+  // Guardar carga masiva
+  async function guardarCargaMasiva() {
+    if (previaCarga.length === 0) return
+    setCargando(true)
+    setErrorCarga('')
+
+    let actualizados = 0
+    let insertados = 0
+    let errores = 0
+
+    for (const item of previaCarga) {
+      // Buscar si ya existe el producto para esta estación
+      const { data: existe } = await supabase.from('inventario').select('id')
+        .eq('estacion_id', perfil.estacion_id)
+        .ilike('producto', item.producto)
+        .single()
+
+      if (existe) {
+        // Actualizar
+        const { error } = await supabase.from('inventario').update({
+          stock_actual: item.stock_actual,
+          stock_minimo: item.stock_minimo,
+          categoria: item.categoria,
+          unidad: item.unidad,
+          updated_at: new Date().toISOString(),
+        }).eq('id', existe.id)
+        if (error) errores++
+        else actualizados++
+      } else {
+        // Insertar
+        const { error } = await supabase.from('inventario').insert({
+          estacion_id: perfil.estacion_id,
+          producto: item.producto,
+          categoria: item.categoria,
+          stock_actual: item.stock_actual,
+          stock_minimo: item.stock_minimo,
+          unidad: item.unidad,
+        })
+        if (error) errores++
+        else insertados++
+      }
     }
-    setShowForm(false); setEditando(null)
+
+    toast(`✓ ${insertados} insertados, ${actualizados} actualizados${errores > 0 ? `, ${errores} errores` : ''}`, errores > 0 ? 'warning' : 'success')
+    setPreviaCarga([])
+    setArchivoExcel(null)
+    setTab('actual')
     await loadData()
-    setGuardando(false)
+    setCargando(false)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Cargando...</div>
+  async function actualizarStock(id, campo, valor) {
+    await supabase.from('inventario').update({
+      [campo]: parseFloat(valor) || 0,
+      updated_at: new Date().toISOString()
+    }).eq('id', id)
+    setInventario(prev => prev.map(i => i.id === id ? { ...i, [campo]: valor } : i))
+  }
 
-  const alertas = items.filter(i => i.stock_actual <= i.stock_minimo).length
+  async function eliminarProducto(id) {
+    if (!confirm('¿Eliminar este producto del inventario?')) return
+    await supabase.from('inventario').delete().eq('id', id)
+    setInventario(prev => prev.filter(i => i.id !== id))
+    toast('Producto eliminado', 'info')
+  }
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  )
+
+  const categorias = ['Todas', ...new Set(inventario.map(i => i.categoria).filter(Boolean))]
+  const inventarioFiltrado = inventario.filter(i => {
+    const matchBusqueda = i.producto?.toLowerCase().includes(busqueda.toLowerCase())
+    const matchCat = filtroCat === 'Todas' || i.categoria === filtroCat
+    return matchBusqueda && matchCat
+  })
+  const bajoStock = inventario.filter(i => parseFloat(i.stock_actual) <= parseFloat(i.stock_minimo))
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
-      <div className="p-6 max-w-3xl">
+      <ToastContainer toasts={toasts} />
+      <div className="p-6 max-w-4xl">
         <div className="flex items-start justify-between mb-5">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Inventario</h1>
-            <p className="text-sm text-gray-400">{estacion?.nombre} {alertas > 0 && <span className="text-red-500 ml-1">· {alertas} producto{alertas > 1 ? 's' : ''} con stock bajo</span>}</p>
+            <p className="text-sm text-gray-400">{estacion?.nombre}</p>
           </div>
-          <button onClick={nuevaFila} className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-            + Agregar producto
-          </button>
+          {bajoStock.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 font-medium">
+              ⚠ {bajoStock.length} producto{bajoStock.length > 1 ? 's' : ''} bajo stock mínimo
+            </div>
+          )}
         </div>
 
-        {showForm && (
-          <form onSubmit={guardar} className="bg-white rounded-xl border border-blue-100 p-5 mb-5">
-            <h2 className="text-sm font-medium text-gray-700 mb-3">{editando ? 'Editar producto' : 'Nuevo producto'}</h2>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Producto</label>
-                <input value={form.producto} onChange={e => setForm(f => ({ ...f, producto: e.target.value }))} required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" placeholder="Aceite 10W-40" />
+        {/* Tabs */}
+        <div className="flex gap-1 mb-5 border-b border-gray-100">
+          {[['actual', 'Inventario actual'], ['carga', 'Carga masiva desde Excel']].map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={`px-4 py-2 text-sm border-b-2 transition-colors whitespace-nowrap ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab: Inventario actual */}
+        {tab === 'actual' && (
+          <>
+            {inventario.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
+                <div className="text-gray-400 text-sm mb-3">No hay productos en el inventario aún</div>
+                <button onClick={() => setTab('carga')} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                  Cargar inventario desde Excel →
+                </button>
               </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Categoría</label>
-                <input value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" placeholder="Lubricantes" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Stock actual</label>
-                <input type="number" min="0" step="0.01" value={form.stock_actual} onChange={e => setForm(f => ({ ...f, stock_actual: e.target.value }))} required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" placeholder="0" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Stock mínimo</label>
-                <input type="number" min="0" step="0.01" value={form.stock_minimo} onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))} required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" placeholder="0" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Unidad</label>
-                <select value={form.unidad} onChange={e => setForm(f => ({ ...f, unidad: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400">
-                  <option>unidades</option><option>cajas</option><option>litros</option><option>kg</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={guardando} className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{guardando ? 'Guardando...' : 'Guardar'}</button>
-            </div>
-          </form>
+            ) : (
+              <>
+                {/* Filtros */}
+                <div className="flex gap-3 mb-4">
+                  <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                    placeholder="Buscar producto..."
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+                  <select value={filtroCat} onChange={e => setFiltroCat(e.target.value)}
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+                    {categorias.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Producto</th>
+                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Categoría</th>
+                        <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Stock actual</th>
+                        <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Stock mínimo</th>
+                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Unidad</th>
+                        <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
+                        <th className="px-4 py-2.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inventarioFiltrado.map(item => {
+                        const bajo = parseFloat(item.stock_actual) <= parseFloat(item.stock_minimo)
+                        return (
+                          <tr key={item.id} className={`border-b border-gray-50 hover:bg-gray-50 ${bajo ? 'bg-amber-50/30' : ''}`}>
+                            <td className="px-4 py-2.5 text-gray-800 font-medium text-xs">{item.producto}</td>
+                            <td className="px-3 py-2.5 text-gray-500 text-xs">{item.categoria}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              <input type="number" min="0" step="0.01"
+                                defaultValue={item.stock_actual}
+                                onBlur={e => actualizarStock(item.id, 'stock_actual', e.target.value)}
+                                className={`w-20 border rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400 ${bajo ? 'border-amber-300 bg-amber-50' : 'border-gray-200'}`} />
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <input type="number" min="0" step="0.01"
+                                defaultValue={item.stock_minimo}
+                                onBlur={e => actualizarStock(item.id, 'stock_minimo', e.target.value)}
+                                className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400" />
+                            </td>
+                            <td className="px-3 py-2.5 text-gray-500 text-xs">{item.unidad}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              {bajo
+                                ? <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-medium">Bajo stock</span>
+                                : <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">OK</span>
+                              }
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              <button onClick={() => eliminarProducto(item.id)} className="text-xs text-red-400 hover:text-red-600">Eliminar</button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  {inventarioFiltrado.length === 0 && (
+                    <div className="px-5 py-6 text-center text-xs text-gray-400">Sin resultados</div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">Haz clic en cualquier número para editarlo directamente.</p>
+              </>
+            )}
+          </>
         )}
 
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Producto</th>
-                <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Categoría</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Stock</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Mínimo</th>
-                <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
-                <th className="px-5 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-6 text-center text-xs text-gray-400">Sin productos aún. Agrega el primero.</td></tr>
-              )}
-              {items.map(item => (
-                <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-5 py-3 text-gray-800 font-medium">{item.producto}</td>
-                  <td className="px-3 py-3 text-gray-500">{item.categoria || '—'}</td>
-                  <td className="px-3 py-3 text-right text-gray-700">{item.stock_actual} {item.unidad}</td>
-                  <td className="px-3 py-3 text-right text-gray-400">{item.stock_minimo}</td>
-                  <td className="px-3 py-3 text-center">
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${statusColor(item)}`}>{statusLabel(item)}</span>
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <button onClick={() => iniciarEdicion(item)} className="text-xs text-blue-500 hover:text-blue-700">Editar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* Tab: Carga masiva */}
+        {tab === 'carga' && (
+          <div className="space-y-4">
+
+            {/* Paso 1: Descargar plantilla */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">1</div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-800 mb-1">Descarga la plantilla Excel</h3>
+                  <p className="text-xs text-gray-500 mb-3">La plantilla ya incluye los 51 productos del catálogo Hidrocom con SKU, categoría y unidad prellenados. Solo necesitas ingresar el stock actual y mínimo de cada producto.</p>
+                  <button onClick={descargarPlantilla}
+                    className="flex items-center gap-2 text-sm px-4 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Descargar plantilla (51 productos)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Paso 2: Subir Excel */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">2</div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-800 mb-1">Sube el archivo completado</h3>
+                  <p className="text-xs text-gray-500 mb-3">Sube la plantilla con los stocks actualizados. Si un producto ya existe en el inventario, se actualizará automáticamente.</p>
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-300 transition-colors">
+                    <input type="file" accept=".xlsx,.xls,.csv" id="excel-upload"
+                      onChange={procesarExcel} className="hidden" />
+                    <label htmlFor="excel-upload" className="cursor-pointer">
+                      {archivoExcel ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm text-green-700 font-medium">{archivoExcel.name}</span>
+                          <button type="button" onClick={() => { setArchivoExcel(null); setPreviaCarga([]) }}
+                            className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
+                        </div>
+                      ) : (
+                        <>
+                          <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-8m0 0l-3 3m3-3l3 3M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <p className="text-sm text-gray-500 font-medium">Haz clic para subir el Excel</p>
+                          <p className="text-xs text-gray-400 mt-1">.xlsx, .xls o .csv</p>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                  {errorCarga && (
+                    <div className="mt-3 bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-xs text-red-700">{errorCarga}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Paso 3: Vista previa y confirmar */}
+            {previaCarga.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">3</div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-800">Vista previa — {previaCarga.length} productos</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Verifica los datos antes de guardar</p>
+                      </div>
+                      <button onClick={guardarCargaMasiva} disabled={cargando}
+                        className="flex items-center gap-2 text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                        {cargando && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                        {cargando ? 'Guardando...' : `Guardar ${previaCarga.length} productos`}
+                      </button>
+                    </div>
+
+                    <div className="border border-gray-100 rounded-xl overflow-hidden max-h-96 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-gray-50">
+                          <tr className="border-b border-gray-100">
+                            <th className="px-4 py-2 text-left text-xs text-gray-400 font-normal">Producto</th>
+                            <th className="px-3 py-2 text-left text-xs text-gray-400 font-normal">Categoría</th>
+                            <th className="px-3 py-2 text-center text-xs text-gray-400 font-normal">Stock actual</th>
+                            <th className="px-3 py-2 text-center text-xs text-gray-400 font-normal">Stock mínimo</th>
+                            <th className="px-4 py-2 text-left text-xs text-gray-400 font-normal">Unidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previaCarga.map((item, i) => (
+                            <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                              <td className="px-4 py-2.5 text-gray-800 text-xs font-medium">{item.producto}</td>
+                              <td className="px-3 py-2.5 text-gray-500 text-xs">{item.categoria}</td>
+                              <td className="px-3 py-2.5 text-center text-xs text-gray-700">{item.stock_actual}</td>
+                              <td className="px-3 py-2.5 text-center text-xs text-gray-700">{item.stock_minimo}</td>
+                              <td className="px-4 py-2.5 text-gray-500 text-xs">{item.unidad}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Layout>
   )
