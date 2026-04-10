@@ -50,16 +50,13 @@ export default function Layout({ children, perfil, estacion }) {
       {/* Sidebar — solo desktop */}
       <aside className="hidden md:flex w-52 bg-white border-r border-gray-100 flex-col flex-shrink-0">
 
-        {/* Logo */}
-        <div className="px-4 py-4 border-b border-gray-100 flex flex-col items-center"
-          style={{ backgroundColor: darkMode ? '#1e3a5f' : 'transparent' }}>
+        <div className="px-4 py-4 border-b border-gray-100 flex flex-col items-center">
           <img
-            src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg"
+            src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
             alt="Hidrocom"
             className="h-24 w-full object-contain mb-1"
           />
-          <div className="text-xs text-center truncate w-full"
-            style={{ color: darkMode ? '#93c5fd' : '#9ca3af' }}>
+          <div className="text-xs text-gray-400 text-center truncate w-full">
             {esAdmin ? 'Administrador' : (estacion?.nombre || '...')}
           </div>
         </div>
@@ -116,17 +113,11 @@ export default function Layout({ children, perfil, estacion }) {
 
         {/* Topbar móvil */}
         <div className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-          <div style={{
-            backgroundColor: darkMode ? '#1e3a5f' : 'transparent',
-            borderRadius: darkMode ? '8px' : '0',
-            padding: darkMode ? '4px 8px' : '0'
-          }}>
-            <img
-              src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg"
-              alt="Hidrocom"
-              className="h-8 object-contain"
-            />
-          </div>
+          <img
+            src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
+            alt="Hidrocom"
+            className="h-8 object-contain"
+          />
           <div className="flex items-center gap-2">
             <button onClick={toggleDark} className="p-2 rounded-lg hover:bg-gray-50">
               {darkMode ? (
