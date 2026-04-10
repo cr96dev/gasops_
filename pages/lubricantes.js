@@ -5,56 +5,56 @@ import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
 
 const PRODUCTOS = [
-  { sku: 'MPPDVP-43', nombre: 'Impulse 4T 10W40', precio: 68.00 },
-  { sku: 'MPPDVP-54', nombre: 'SYNCHRON ATF FULL', precio: 73.00 },
-  { sku: 'MPPDVP-53', nombre: 'CUBETA 15W40', precio: 678.00 },
-  { sku: 'MPPDVP-52', nombre: 'CUBETA 20W50', precio: 700.00 },
-  { sku: 'MPPDVP-51', nombre: 'SHELL ADVANCE SAE 10W-40 ULTRA', precio: 91.00 },
-  { sku: 'MPPDVP-50', nombre: 'PLUMILLAS BOSCH', precio: 135.00 },
-  { sku: 'MPPDVP-49', nombre: 'POWER STEERING 12 ONZAS', precio: 27.50 },
-  { sku: 'MPPDVP-48', nombre: 'LIQUIDO DE FRENOS', precio: 29.50 },
-  { sku: 'MPPDVP-47', nombre: 'REFRIGERANTE TOP GUARD', precio: 34.50 },
-  { sku: 'MPPDVP-46', nombre: 'SHELL SPIRAX S5 ATF X', precio: 85.00 },
-  { sku: 'MPPDVP-45', nombre: 'SHELL SPIRAX S3 ATF MD3 LITRO', precio: 69.00 },
-  { sku: 'MPPDVP-44', nombre: 'RIMULA R4X 15W-40 GRIS GALÓN', precio: 282.00 },
-  { sku: 'MPPDVP-43B', nombre: 'RIMULA R4X 15W-40 GRIS LITRO', precio: 70.00 },
-  { sku: 'MPPDVP-42', nombre: 'HELIX ULTRA 5W-40 GALÓN', precio: 415.00 },
-  { sku: 'MPPDVP-41', nombre: 'HELIX ULTRA 5W-40 LITRO', precio: 91.00 },
-  { sku: 'MPPDVP-40', nombre: 'HELIX ULTRA 5W-30 GALÓN', precio: 415.00 },
-  { sku: 'MPPDVP-39', nombre: 'HELIX HX8 5W-30 LITRO', precio: 87.00 },
-  { sku: 'MPPDVP-38', nombre: 'HELIX ULTRA 5W-30 LITRO', precio: 91.00 },
-  { sku: 'MPPDVP-37', nombre: 'HELIX HX7 SN 10W-30 AZUL GALÓN', precio: 315.00 },
-  { sku: 'MPPDVP-36', nombre: 'HELIX HX7 SN 10W-30 AZUL LITRO', precio: 78.00 },
-  { sku: 'MPPDVP-35', nombre: 'HELIX HX5 20W-50 GALÓN', precio: 265.00 },
-  { sku: 'MPPDVP-34', nombre: 'HELIX HX5 20W-50 LITRO', precio: 66.00 },
-  { sku: 'MPPDVP-33', nombre: 'HELIX HX3 25W-60 GALÓN', precio: 272.00 },
-  { sku: 'MPPDVP-32', nombre: 'HELIX HX3 25W-60 LITRO', precio: 67.00 },
-  { sku: 'MPPDVP-31', nombre: 'HELIX HX3 SAE 40 GALÓN', precio: 250.00 },
-  { sku: 'MPPDVP-30', nombre: 'HELIX HX3 SAE 40 LITRO', precio: 63.00 },
-  { sku: 'MPPDVP-29', nombre: 'SHELL ADVANCE AX5 4T 20W50 LITRO', precio: 67.00 },
-  { sku: 'MPPDVP-28', nombre: 'SHELL ADVANCE S2 DOS TT LITRO', precio: 67.00 },
-  { sku: 'MPPDVP-27', nombre: 'TP Fuel Injector PINTA 12 OZ', precio: 28.00 },
-  { sku: 'MPPDVP-26', nombre: 'UNO Impulse 2T LITRO', precio: 52.00 },
-  { sku: 'MPPDVP-25', nombre: 'FORZA EURO SAE 5W-40 1 LITRO', precio: 81.00 },
-  { sku: 'MPPDVP-24', nombre: 'UNO ULTRA FULL SYNT 5W-30', precio: 75.00 },
-  { sku: 'MPPDVP-23', nombre: 'UNO Forza 50 1 LITRO', precio: 52.00 },
-  { sku: 'MPPDVP-22', nombre: 'UNO Forza 15W-40 1 LITRO', precio: 53.00 },
-  { sku: 'MPPDVP-21', nombre: 'TP Power Steering F PINTA 12 OZ', precio: 22.00 },
-  { sku: 'MPPDVP-20', nombre: 'TP Brake Fluid PINTA 12 OZ', precio: 24.00 },
-  { sku: 'MPPDVP-19', nombre: 'TP COOLANT 50/50 1 GALON', precio: 104.00 },
-  { sku: 'MPPDVP-18', nombre: 'TP COOLANT 50/50 1 LITRO', precio: 29.00 },
-  { sku: 'MPPDVP-17', nombre: 'UNO Synchron ATF 1 LITRO', precio: 50.00 },
-  { sku: 'MPPDVP-16', nombre: 'UNO Ultra 40 1 GALON', precio: 173.00 },
-  { sku: 'MPPDVP-15', nombre: 'UNO Ultra 40 1 LITRO', precio: 52.00 },
-  { sku: 'MPPDVP-14', nombre: 'UNO Ultra 20W-50 1 GALON', precio: 192.00 },
-  { sku: 'MPPDVP-13', nombre: 'UNO Ultra 15W-40 1 GALON', precio: 185.00 },
-  { sku: 'MPPDVP-12', nombre: 'UNO Ultra 20W-50 1 LITRO', precio: 60.00 },
-  { sku: 'MPPDVP-11', nombre: 'UNO Impulse 4T 20W-50 1 LITRO', precio: 51.00 },
-  { sku: 'MPPDVP-10', nombre: 'UNO Ultra 10W-30 GALON', precio: 192.00 },
-  { sku: 'MPPDVP-9',  nombre: 'UNO Ultra 10W-30 1 LITRO', precio: 60.00 },
-  { sku: 'MPPDVP-8',  nombre: 'Prodin Agua Destilada 18oz', precio: 20.00 },
-  { sku: 'MPPDVP-7',  nombre: 'Prodin Activador Electrolitico 18oz', precio: 22.00 },
-  { sku: 'MPPDVP-6',  nombre: 'Garantía x Lluvia', precio: 15.00 },
+  { sku: 'MPPDVP-43',  nombre: 'Impulse 4T 10W40',                   precio: 68.00 },
+  { sku: 'MPPDVP-54',  nombre: 'SYNCHRON ATF FULL',                   precio: 73.00 },
+  { sku: 'MPPDVP-53',  nombre: 'CUBETA 15W40',                        precio: 678.00 },
+  { sku: 'MPPDVP-52',  nombre: 'CUBETA 20W50',                        precio: 700.00 },
+  { sku: 'MPPDVP-51',  nombre: 'SHELL ADVANCE SAE 10W-40 ULTRA',      precio: 91.00 },
+  { sku: 'MPPDVP-50',  nombre: 'PLUMILLAS BOSCH',                     precio: 135.00 },
+  { sku: 'MPPDVP-49',  nombre: 'POWER STEERING 12 ONZAS',             precio: 27.50 },
+  { sku: 'MPPDVP-48',  nombre: 'LIQUIDO DE FRENOS',                   precio: 29.50 },
+  { sku: 'MPPDVP-47',  nombre: 'REFRIGERANTE TOP GUARD',              precio: 34.50 },
+  { sku: 'MPPDVP-46',  nombre: 'SHELL SPIRAX S5 ATF X',               precio: 85.00 },
+  { sku: 'MPPDVP-45',  nombre: 'SHELL SPIRAX S3 ATF MD3 LITRO',       precio: 69.00 },
+  { sku: 'MPPDVP-44',  nombre: 'RIMULA R4X 15W-40 GRIS GALÓN',        precio: 282.00 },
+  { sku: 'MPPDVP-43B', nombre: 'RIMULA R4X 15W-40 GRIS LITRO',        precio: 70.00 },
+  { sku: 'MPPDVP-42',  nombre: 'HELIX ULTRA 5W-40 GALÓN',             precio: 415.00 },
+  { sku: 'MPPDVP-41',  nombre: 'HELIX ULTRA 5W-40 LITRO',             precio: 91.00 },
+  { sku: 'MPPDVP-40',  nombre: 'HELIX ULTRA 5W-30 GALÓN',             precio: 415.00 },
+  { sku: 'MPPDVP-39',  nombre: 'HELIX HX8 5W-30 LITRO',               precio: 87.00 },
+  { sku: 'MPPDVP-38',  nombre: 'HELIX ULTRA 5W-30 LITRO',             precio: 91.00 },
+  { sku: 'MPPDVP-37',  nombre: 'HELIX HX7 SN 10W-30 AZUL GALÓN',     precio: 315.00 },
+  { sku: 'MPPDVP-36',  nombre: 'HELIX HX7 SN 10W-30 AZUL LITRO',     precio: 78.00 },
+  { sku: 'MPPDVP-35',  nombre: 'HELIX HX5 20W-50 GALÓN',              precio: 265.00 },
+  { sku: 'MPPDVP-34',  nombre: 'HELIX HX5 20W-50 LITRO',              precio: 66.00 },
+  { sku: 'MPPDVP-33',  nombre: 'HELIX HX3 25W-60 GALÓN',              precio: 272.00 },
+  { sku: 'MPPDVP-32',  nombre: 'HELIX HX3 25W-60 LITRO',              precio: 67.00 },
+  { sku: 'MPPDVP-31',  nombre: 'HELIX HX3 SAE 40 GALÓN',              precio: 250.00 },
+  { sku: 'MPPDVP-30',  nombre: 'HELIX HX3 SAE 40 LITRO',              precio: 63.00 },
+  { sku: 'MPPDVP-29',  nombre: 'SHELL ADVANCE AX5 4T 20W50 LITRO',    precio: 67.00 },
+  { sku: 'MPPDVP-28',  nombre: 'SHELL ADVANCE S2 DOS TT LITRO',       precio: 67.00 },
+  { sku: 'MPPDVP-27',  nombre: 'TP Fuel Injector PINTA 12 OZ',        precio: 28.00 },
+  { sku: 'MPPDVP-26',  nombre: 'UNO Impulse 2T LITRO',                precio: 52.00 },
+  { sku: 'MPPDVP-25',  nombre: 'FORZA EURO SAE 5W-40 1 LITRO',        precio: 81.00 },
+  { sku: 'MPPDVP-24',  nombre: 'UNO ULTRA FULL SYNT 5W-30',           precio: 75.00 },
+  { sku: 'MPPDVP-23',  nombre: 'UNO Forza 50 1 LITRO',                precio: 52.00 },
+  { sku: 'MPPDVP-22',  nombre: 'UNO Forza 15W-40 1 LITRO',            precio: 53.00 },
+  { sku: 'MPPDVP-21',  nombre: 'TP Power Steering F PINTA 12 OZ',     precio: 22.00 },
+  { sku: 'MPPDVP-20',  nombre: 'TP Brake Fluid PINTA 12 OZ',          precio: 24.00 },
+  { sku: 'MPPDVP-19',  nombre: 'TP COOLANT 50/50 1 GALON',            precio: 104.00 },
+  { sku: 'MPPDVP-18',  nombre: 'TP COOLANT 50/50 1 LITRO',            precio: 29.00 },
+  { sku: 'MPPDVP-17',  nombre: 'UNO Synchron ATF 1 LITRO',            precio: 50.00 },
+  { sku: 'MPPDVP-16',  nombre: 'UNO Ultra 40 1 GALON',                precio: 173.00 },
+  { sku: 'MPPDVP-15',  nombre: 'UNO Ultra 40 1 LITRO',                precio: 52.00 },
+  { sku: 'MPPDVP-14',  nombre: 'UNO Ultra 20W-50 1 GALON',            precio: 192.00 },
+  { sku: 'MPPDVP-13',  nombre: 'UNO Ultra 15W-40 1 GALON',            precio: 185.00 },
+  { sku: 'MPPDVP-12',  nombre: 'UNO Ultra 20W-50 1 LITRO',            precio: 60.00 },
+  { sku: 'MPPDVP-11',  nombre: 'UNO Impulse 4T 20W-50 1 LITRO',       precio: 51.00 },
+  { sku: 'MPPDVP-10',  nombre: 'UNO Ultra 10W-30 GALON',              precio: 192.00 },
+  { sku: 'MPPDVP-9',   nombre: 'UNO Ultra 10W-30 1 LITRO',            precio: 60.00 },
+  { sku: 'MPPDVP-8',   nombre: 'Prodin Agua Destilada 18oz',          precio: 20.00 },
+  { sku: 'MPPDVP-7',   nombre: 'Prodin Activador Electrolitico 18oz', precio: 22.00 },
+  { sku: 'MPPDVP-6',   nombre: 'Garantía x Lluvia',                   precio: 15.00 },
 ]
 
 export default function Lubricantes({ session }) {
@@ -64,7 +64,7 @@ export default function Lubricantes({ session }) {
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
-  const [registroHoy, setRegistroHoy] = useState(null)
+  const [registroFecha, setRegistroFecha] = useState(null)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
   const [busqueda, setBusqueda] = useState('')
   const [itemsSeleccionados, setItemsSeleccionados] = useState([])
@@ -108,7 +108,7 @@ export default function Lubricantes({ session }) {
       .eq('estacion_id', estacionId)
       .eq('fecha', f)
       .single()
-    setRegistroHoy(data || null)
+    setRegistroFecha(data || null)
   }
 
   function agregarProducto(producto) {
@@ -196,9 +196,26 @@ export default function Lubricantes({ session }) {
       return
     }
 
+    // Rebajar inventario por cada producto vendido
+    for (const item of itemsSeleccionados) {
+      const { data: inv } = await supabase.from('inventario')
+        .select('id, stock_actual')
+        .eq('estacion_id', perfil.estacion_id)
+        .ilike('producto', item.nombre)
+        .single()
+
+      if (inv) {
+        const nuevoStock = Math.max(0, parseFloat(inv.stock_actual) - parseFloat(item.cantidad))
+        await supabase.from('inventario').update({
+          stock_actual: nuevoStock,
+          updated_at: new Date().toISOString()
+        }).eq('id', inv.id)
+      }
+    }
+
     setItemsSeleccionados([])
     setNeonet(''); setEfectivo(''); setNotas('')
-    toast('✓ Ventas de lubricantes registradas', 'success')
+    toast('✓ Venta registrada e inventario actualizado', 'success')
     await loadData()
     setGuardando(false)
   }
@@ -238,8 +255,7 @@ export default function Lubricantes({ session }) {
               <button type="button" onClick={() => {
                 const ayer = new Date(); ayer.setDate(ayer.getDate() - 1)
                 setFecha(ayer.toISOString().split('T')[0])
-              }}
-                className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+              }} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
                 Ayer
               </button>
             </div>
@@ -258,7 +274,7 @@ export default function Lubricantes({ session }) {
           <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-4 text-xs text-red-600">
             No puedes registrar ventas para fechas futuras.
           </div>
-        ) : registroHoy ? (
+        ) : registroFecha ? (
           <div className="space-y-4">
             <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
               <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -272,7 +288,7 @@ export default function Lubricantes({ session }) {
 
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Productos vendidos</h2>
-              {(registroHoy.ventas_lubricantes_detalle || []).map(d => (
+              {(registroFecha.ventas_lubricantes_detalle || []).map(d => (
                 <div key={d.id} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
                   <div>
                     <span className="text-gray-700">{d.nombre}</span>
@@ -283,26 +299,26 @@ export default function Lubricantes({ session }) {
               ))}
               <div className="flex justify-between pt-2 mt-1 text-sm font-medium text-gray-800">
                 <span>Total venta</span>
-                <span>Q{parseFloat(registroHoy.total_venta).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                <span>Q{parseFloat(registroFecha.total_venta).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
-              {parseFloat(registroHoy.neonet) > 0 && (
+              {parseFloat(registroFecha.neonet) > 0 && (
                 <div className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
                   <span className="text-gray-600">Neonet</span>
-                  <span className="text-gray-800">Q{parseFloat(registroHoy.neonet).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                  <span className="text-gray-800">Q{parseFloat(registroFecha.neonet).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
                 </div>
               )}
-              {parseFloat(registroHoy.efectivo) > 0 && (
+              {parseFloat(registroFecha.efectivo) > 0 && (
                 <div className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
                   <span className="text-gray-600">Efectivo</span>
-                  <span className="text-gray-800">Q{parseFloat(registroHoy.efectivo).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                  <span className="text-gray-800">Q{parseFloat(registroFecha.efectivo).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
                 </div>
               )}
               {(() => {
-                const dif = parseFloat(registroHoy.total_venta) - (parseFloat(registroHoy.neonet) + parseFloat(registroHoy.efectivo))
+                const dif = parseFloat(registroFecha.total_venta) - (parseFloat(registroFecha.neonet) + parseFloat(registroFecha.efectivo))
                 return (
                   <div className={`flex justify-between pt-2 mt-1 text-sm font-medium ${Math.abs(dif) < 0.01 ? 'text-green-700' : 'text-red-600'}`}>
                     <span>Diferencia</span>
@@ -319,13 +335,9 @@ export default function Lubricantes({ session }) {
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Agregar productos</h2>
               <div className="relative mb-3">
-                <input
-                  type="text"
-                  value={busqueda}
-                  onChange={e => setBusqueda(e.target.value)}
+                <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
                   placeholder="Buscar producto por nombre o SKU..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 pr-8"
-                />
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 pr-8" />
                 {busqueda && (
                   <button type="button" onClick={() => setBusqueda('')}
                     className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 text-xs">✕</button>
@@ -350,7 +362,6 @@ export default function Lubricantes({ session }) {
                 </div>
               )}
 
-              {/* Productos seleccionados */}
               {itemsSeleccionados.length > 0 && (
                 <div className="border border-gray-100 rounded-xl overflow-hidden">
                   <div className="grid grid-cols-12 bg-gray-50 px-4 py-2 border-b border-gray-100">
@@ -367,19 +378,17 @@ export default function Lubricantes({ session }) {
                           className="text-xs text-red-400 hover:text-red-600 mt-0.5">Quitar</button>
                       </div>
                       <div className="col-span-2">
-                        <input type="number" min="0" step="0.01"
-                          value={item.cantidad}
+                        <input type="number" min="0" step="0.01" value={item.cantidad}
                           onChange={e => actualizarItem(item.sku, 'cantidad', e.target.value)}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400" />
                       </div>
                       <div className="col-span-3">
-                        <input type="number" min="0" step="0.01"
-                          value={item.precio}
+                        <input type="number" min="0" step="0.01" value={item.precio}
                           onChange={e => actualizarItem(item.sku, 'precio', e.target.value)}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400" />
                       </div>
                       <div className="col-span-2 text-xs font-medium text-gray-800 text-right">
-                        Q{((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)).toLocaleString('es-GT', { maximumFractionDigits: 2 })}
+                        Q{((parseFloat(item.cantidad)||0)*(parseFloat(item.precio)||0)).toLocaleString('es-GT', { maximumFractionDigits: 2 })}
                       </div>
                     </div>
                   ))}
@@ -393,9 +402,7 @@ export default function Lubricantes({ session }) {
               )}
 
               {itemsSeleccionados.length === 0 && !busqueda && (
-                <div className="text-center py-4 text-xs text-gray-400">
-                  Busca un producto para agregarlo
-                </div>
+                <div className="text-center py-4 text-xs text-gray-400">Busca un producto para agregarlo</div>
               )}
             </div>
 
@@ -443,7 +450,7 @@ export default function Lubricantes({ session }) {
             </div>
 
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
-              <p className="text-xs text-amber-700">Una vez guardado el registro no podrá ser modificado.</p>
+              <p className="text-xs text-amber-700">Una vez guardado el registro no podrá ser modificado. El inventario se actualizará automáticamente.</p>
             </div>
 
             {errorMsg && (
@@ -481,31 +488,30 @@ export default function Lubricantes({ session }) {
               )}
               {historial.map(v => (
                 <>
-                  <tr key={v.id}
-                    onClick={() => setFecha(v.fecha)}
+                  <tr key={v.id} onClick={() => setFecha(v.fecha)}
                     className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
                     <td className="px-5 py-3 text-gray-700">
                       {v.fecha}
                       {v.fecha === hoy && <span className="ml-2 text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">Hoy</span>}
                     </td>
                     <td className="px-3 py-3 text-right font-medium text-gray-800">Q{parseFloat(v.total_venta).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</td>
-                    <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.neonet) > 0 ? `Q${parseFloat(v.neonet).toLocaleString('es-GT', { maximumFractionDigits: 2 })}` : '—'}</td>
-                    <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.efectivo) > 0 ? `Q${parseFloat(v.efectivo).toLocaleString('es-GT', { maximumFractionDigits: 2 })}` : '—'}</td>
+                    <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.neonet)>0?`Q${parseFloat(v.neonet).toLocaleString('es-GT',{maximumFractionDigits:2})}`:'—'}</td>
+                    <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.efectivo)>0?`Q${parseFloat(v.efectivo).toLocaleString('es-GT',{maximumFractionDigits:2})}`:'—'}</td>
                     <td className="px-4 py-3 text-center">
-                      <button onClick={e => { e.stopPropagation(); setDetalleAbierto(detalleAbierto === v.id ? null : v.id) }}
+                      <button onClick={e => { e.stopPropagation(); setDetalleAbierto(detalleAbierto===v.id?null:v.id) }}
                         className="text-xs text-blue-600 hover:text-blue-800">
-                        {detalleAbierto === v.id ? '▲ Cerrar' : '▼ Ver'}
+                        {detalleAbierto===v.id?'▲ Cerrar':'▼ Ver'}
                       </button>
                     </td>
                   </tr>
-                  {detalleAbierto === v.id && (
+                  {detalleAbierto===v.id && (
                     <tr key={`${v.id}-det`} className="border-b border-gray-100">
                       <td colSpan={5} className="px-5 py-3 bg-gray-50">
                         <div className="space-y-1">
-                          {(v.ventas_lubricantes_detalle || []).map(d => (
+                          {(v.ventas_lubricantes_detalle||[]).map(d => (
                             <div key={d.id} className="flex justify-between text-xs">
                               <span className="text-gray-600">{d.nombre} <span className="text-gray-400">x{d.cantidad}</span></span>
-                              <span className="text-gray-700 font-medium">Q{parseFloat(d.subtotal).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                              <span className="text-gray-700 font-medium">Q{parseFloat(d.subtotal).toLocaleString('es-GT',{maximumFractionDigits:2})}</span>
                             </div>
                           ))}
                         </div>
