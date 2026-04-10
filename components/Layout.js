@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const navItems = [
@@ -14,7 +14,25 @@ const navItems = [
 export default function Layout({ children, perfil, estacion }) {
   const router = useRouter()
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
   const esAdmin = perfil?.rol === 'admin'
+
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode') === 'true'
+    setDarkMode(saved)
+    if (saved) document.documentElement.classList.add('dark')
+  }, [])
+
+  function toggleDark() {
+    const next = !darkMode
+    setDarkMode(next)
+    localStorage.setItem('darkMode', next)
+    if (next) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
 
   async function logout() {
     await supabase.auth.signOut()
@@ -38,6 +56,7 @@ export default function Layout({ children, perfil, estacion }) {
             {esAdmin ? 'Administrador' : (estacion?.nombre || '...')}
           </div>
         </div>
+
         <nav className="flex-1 py-3 space-y-0.5 px-2">
           {navItems.map(item => {
             const active = router.pathname === item.href
@@ -53,6 +72,7 @@ export default function Layout({ children, perfil, estacion }) {
               </button>
             )
           })}
+
           {esAdmin && (
             <>
               <div className="px-3 pt-3 pb-1 text-xs text-gray-400 uppercase tracking-wider">Admin</div>
@@ -68,8 +88,17 @@ export default function Layout({ children, perfil, estacion }) {
             </>
           )}
         </nav>
+
         <div className="px-4 py-3 border-t border-gray-100">
-          <div className="text-xs text-gray-500 truncate mb-2">{perfil?.nombre_completo}</div>
+          {/* Toggle modo noche */}
+          <button onClick={toggleDark}
+            className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-gray-50 mb-2 transition-colors">
+            <span className="text-xs text-gray-500">{darkMode ? 'Modo día' : 'Modo noche'}</span>
+            <div className={`w-8 h-4 rounded-full transition-colors relative ${darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}>
+              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
+            </div>
+          </button>
+          <div className="text-xs text-gray-500 truncate mb-1">{perfil?.nombre_completo}</div>
           <button onClick={logout} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
             Cerrar sesión
           </button>
@@ -83,12 +112,22 @@ export default function Layout({ children, perfil, estacion }) {
         <div className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
           <img src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg"
             alt="Hidrocom" className="h-8 object-contain" />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={toggleDark} className="p-2 rounded-lg hover:bg-gray-50">
+              {darkMode ? (
+                <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 15a5 5 0 100-10 5 5 0 000 10zm7-5a1 1 0 011-1h1a1 1 0 110 2h-1a1 1 0 01-1-1zM4 12a1 1 0 01-1 1H2a1 1 0 110-2h1a1 1 0 011 1zm14.95 5.536a1 1 0 010 1.414l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 0zm-12.9 0a1 1 0 011.414 0l.707.707a1 1 0 01-1.414 1.414l-.707-.707a1 1 0 010-1.414zm12.9-14.072a1 1 0 011.414 1.414l-.707.707a1 1 0 01-1.414-1.414l.707-.707zM6.05 5.05a1 1 0 010 1.414l-.707.707A1 1 0 013.93 5.757l.707-.707A1 1 0 016.05 5.05zM12 20a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1z"/>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                </svg>
+              )}
+            </button>
             <span className="text-xs text-gray-500 truncate max-w-24">
               {esAdmin ? 'Admin' : (estacion?.nombre || '')}
             </span>
-            <button onClick={() => setMenuAbierto(!menuAbierto)}
-              className="p-2 rounded-lg hover:bg-gray-50">
+            <button onClick={() => setMenuAbierto(!menuAbierto)} className="p-2 rounded-lg hover:bg-gray-50">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 {menuAbierto
                   ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -131,7 +170,7 @@ export default function Layout({ children, perfil, estacion }) {
           {children}
         </main>
 
-        {/* Barra de navegación inferior móvil */}
+        {/* Barra navegación inferior móvil */}
         <nav className="md:hidden bg-white border-t border-gray-100 fixed bottom-0 left-0 right-0 z-10">
           <div className="grid grid-cols-5 px-1">
             {todosLosItems.slice(0, 5).map(item => {
@@ -151,7 +190,6 @@ export default function Layout({ children, perfil, estacion }) {
             })}
           </div>
         </nav>
-
       </div>
     </div>
   )
