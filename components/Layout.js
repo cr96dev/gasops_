@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 const navItems = [
   { href: '/dashboard',   label: 'Inicio',      icon: 'M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 3h2v-2h-2v-2h-2v2h-2v2h2v2h2v-2z' },
   { href: '/ventas',      label: 'Ventas',       icon: 'M3 17l4-8 4 4 4-7 4 6' },
+  { href: '/lubricantes', label: 'Lubricantes',  icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
   { href: '/tanques',     label: 'Tanques',      icon: 'M11 2a9 9 0 100 18A9 9 0 0011 2zm1 2.07V11h6.93A7 7 0 0112 4.07zM4 12a7 7 0 017-7v7l-4.95 4.95A6.97 6.97 0 014 12z' },
   { href: '/inventario',  label: 'Inventario',   icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4V5z' },
   { href: '/entregas',    label: 'Entregas',     icon: 'M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z' },
@@ -50,18 +51,13 @@ export default function Layout({ children, perfil, estacion }) {
       {/* Sidebar — solo desktop */}
       <aside className="hidden md:flex w-56 bg-white border-r border-gray-100 flex-col flex-shrink-0">
 
-        {/* Logo */}
         <div className="px-4 py-5 border-b border-gray-100 flex flex-col items-center">
           <button onClick={() => router.push('/dashboard')} className="w-full">
             <img
               src="/logo.svg"
               alt="GasOps"
               className="w-full object-contain mb-1"
-              style={{
-                height: '80px',
-                filter: 'none',
-                transition: 'filter 0.2s'
-              }}
+              style={{ height: '80px', filter: darkMode ? 'brightness(10)' : 'none', transition: 'filter 0.2s' }}
             />
           </button>
           <div className="text-xs text-gray-400 text-center truncate w-full mt-1">
@@ -69,7 +65,7 @@ export default function Layout({ children, perfil, estacion }) {
           </div>
         </div>
 
-        <nav className="flex-1 py-3 space-y-0.5 px-2">
+        <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
           {navItems.map(item => {
             const active = router.pathname === item.href
             return (
@@ -125,11 +121,7 @@ export default function Layout({ children, perfil, estacion }) {
             <img
               src="/logo.svg"
               alt="GasOps"
-              style={{
-                height: '32px',
-                filter: 'none',
-                transition: 'filter 0.2s'
-              }}
+              style={{ height: '32px', filter: darkMode ? 'brightness(10)' : 'none', transition: 'filter 0.2s' }}
             />
           </button>
           <div className="flex items-center gap-2">
@@ -186,25 +178,25 @@ export default function Layout({ children, perfil, estacion }) {
         )}
 
         {/* Contenido */}
-        <main className="flex-1 min-w-0 pb-6">
+        <main className="flex-1 min-w-0 pb-20">
           {children}
         </main>
 
         {/* Barra navegación inferior móvil */}
         <nav className="md:hidden bg-white border-t border-gray-100 fixed bottom-0 left-0 right-0 z-10">
-          <div className="grid grid-cols-5 px-1">
-            {todosLosItems.slice(0, 5).map(item => {
+          <div className="grid grid-cols-6 px-1">
+            {todosLosItems.slice(0, 6).map(item => {
               const active = router.pathname === item.href
               return (
                 <button key={item.href}
                   onClick={() => { router.push(item.href); setMenuAbierto(false) }}
-                  className={`flex flex-col items-center py-2 px-1 transition-colors ${
+                  className={`flex flex-col items-center py-2 px-0.5 transition-colors ${
                     active ? 'text-blue-600' : 'text-gray-400'
                   }`}>
                   <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                   </svg>
-                  <span className="text-xs">{item.label}</span>
+                  <span className="text-xs leading-tight">{item.label}</span>
                 </button>
               )
             })}
