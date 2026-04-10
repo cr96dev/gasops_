@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
+import { useToast, ToastContainer } from '../components/Toast'
+import { SkeletonTable } from '../components/Skeleton'
 
 const tiposLabel = { regular: 'Regular', premium: 'Super', diesel: 'Diesel', diesel_plus: 'V-Power' }
 const estadoColor = { pendiente: 'text-amber-600 bg-amber-50', confirmada: 'text-green-700 bg-green-50', cancelada: 'text-red-600 bg-red-50' }
@@ -15,7 +17,7 @@ export default function Entregas({ session }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [guardando, setGuardando] = useState(false)
-  const [exito, setExito] = useState(false)
+  const { toasts, toast } = useToast()
   const [form, setForm] = useState({
     proveedor: '', tipo_combustible: 'regular',
     fecha_entrega: new Date().toISOString().split('T')[0],
@@ -40,7 +42,6 @@ export default function Entregas({ session }) {
   async function guardar(e) {
     e.preventDefault()
     setGuardando(true)
-
     const { error } = await supabase.from('entregas').insert({
       estacion_id: perfil.estacion_id,
       proveedor: form.proveedor,
@@ -54,59 +55,50 @@ export default function Entregas({ session }) {
     })
 
     if (!error) {
-      // Actualizar nivel del tanque correspondiente
       const tipo = tipoTanque[form.tipo_combustible]
       const galones = parseFloat(form.volumen_litros)
-
       if (tipo && galones > 0) {
-        const { data: tanqueActual } = await supabase
-          .from('tanques')
-          .select('nivel_galones, capacidad_galones')
-          .eq('estacion_id', perfil.estacion_id)
-          .eq('tipo', tipo)
-          .single()
-
+        const { data: tanqueActual } = await supabase.from('tanques').select('nivel_galones, capacidad_galones')
+          .eq('estacion_id', perfil.estacion_id).eq('tipo', tipo).single()
         if (tanqueActual) {
-          const nuevoNivel = Math.min(
-            parseFloat(tanqueActual.nivel_galones) + galones,
-            parseFloat(tanqueActual.capacidad_galones)
-          )
-
-          await supabase.from('tanques').update({
-            nivel_galones: nuevoNivel,
-            updated_at: new Date().toISOString()
-          })
-          .eq('estacion_id', perfil.estacion_id)
-          .eq('tipo', tipo)
-
+          const nuevoNivel = Math.min(parseFloat(tanqueActual.nivel_galones) + galones, parseFloat(tanqueActual.capacidad_galones))
+          await supabase.from('tanques').update({ nivel_galones: nuevoNivel, updated_at: new Date().toISOString() })
+            .eq('estacion_id', perfil.estacion_id).eq('tipo', tipo)
           await supabase.from('tanques_historial').insert({
-            estacion_id: perfil.estacion_id,
-            tipo: tipo,
-            nivel_galones: nuevoNivel,
-            capacidad_galones: tanqueActual.capacidad_galones,
+            estacion_id: perfil.estacion_id, tipo,
+            nivel_galones: nuevoNivel, capacidad_galones: tanqueActual.capacidad_galones,
             creado_por: session.user.id,
           })
         }
       }
-
       setShowForm(false)
-      setExito(true)
+      setForm({ proveedor: '', tipo_combustible: 'regular', fecha_entrega: new Date().toISOString().split('T')[0], volumen_litros: '', precio_por_litro: '', estado: 'pendiente', notas: '' })
+      toast('✓ Entrega registrada y tanque actualizado', 'success')
       await loadData()
-      setTimeout(() => setExito(false), 3000)
+    } else {
+      toast('Error al registrar entrega', 'error')
     }
-
     setGuardando(false)
   }
 
   async function cambiarEstado(id, estado) {
     await supabase.from('entregas').update({ estado }).eq('id', id)
     setEntregas(prev => prev.map(e => e.id === id ? { ...e, estado } : e))
+    toast(`Estado actualizado a ${estado}`, 'info')
   }
 
-  if (loading) return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Cargando...</div>
+  if (loading) return (
+    <Layout perfil={null} estacion={null}>
+      <div className="p-6 max-w-3xl">
+        <div className="h-6 bg-gray-200 rounded w-48 mb-6 animate-pulse"></div>
+        <SkeletonTable rows={5} />
+      </div>
+    </Layout>
+  )
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
+      <ToastContainer toasts={toasts} />
       <div className="p-6 max-w-3xl">
         <div className="flex items-start justify-between mb-5">
           <div>
@@ -117,12 +109,6 @@ export default function Entregas({ session }) {
             + Registrar entrega
           </button>
         </div>
-
-        {exito && (
-          <div className="mb-4 text-sm text-green-700 bg-green-50 rounded-lg px-4 py-2.5">
-            ✓ Entrega registrada y nivel de tanque actualizado
-          </div>
-        )}
 
         {showForm && (
           <form onSubmit={guardar} className="bg-white rounded-xl border border-blue-100 p-5 mb-5">
@@ -177,12 +163,13 @@ export default function Entregas({ session }) {
               <div className="col-span-2">
                 <label className="text-xs text-gray-500 block mb-1">Notas (opcional)</label>
                 <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={2}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" placeholder="Número de remisión, conductor, etc." />
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
               </div>
             </div>
             <div className="flex gap-2 justify-end mt-3">
               <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={guardando} className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button type="submit" disabled={guardando} className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                {guardando && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                 {guardando ? 'Guardando...' : 'Guardar entrega'}
               </button>
             </div>
