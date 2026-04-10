@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
+import { useToast, ToastContainer } from '../components/Toast'
+import { SkeletonTable } from '../components/Skeleton'
 
 const estadoColor = { pendiente: 'text-amber-600 bg-amber-50', pagada: 'text-green-700 bg-green-50', vencida: 'text-red-600 bg-red-50' }
-const estadoLabel = { pendiente: 'Pendiente', pagada: 'Pagada', vencida: 'Vencida' }
 
 export default function Facturacion({ session }) {
   const router = useRouter()
@@ -14,9 +15,9 @@ export default function Facturacion({ session }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [guardando, setGuardando] = useState(false)
-  const [exito, setExito] = useState(false)
   const [archivoPDF, setArchivoPDF] = useState(null)
   const [subiendoPDF, setSubiendoPDF] = useState(false)
+  const { toasts, toast } = useToast()
   const [form, setForm] = useState({
     numero_factura: '', proveedor: '',
     fecha_emision: new Date().toISOString().split('T')[0],
@@ -43,14 +44,11 @@ export default function Facturacion({ session }) {
     setGuardando(true)
     let archivo_url = null
 
-    // Subir PDF si hay uno
     if (archivoPDF) {
       setSubiendoPDF(true)
       const ext = archivoPDF.name.split('.').pop()
       const fileName = `${perfil.estacion_id}/${Date.now()}.${ext}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('facturas')
-        .upload(fileName, archivoPDF, { contentType: archivoPDF.type })
+      const { error: uploadError } = await supabase.storage.from('facturas').upload(fileName, archivoPDF, { contentType: archivoPDF.type })
       if (!uploadError) {
         const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(fileName)
         archivo_url = urlData?.publicUrl || null
@@ -74,9 +72,11 @@ export default function Facturacion({ session }) {
     if (!error) {
       setShowForm(false)
       setArchivoPDF(null)
-      setExito(true)
+      setForm({ numero_factura: '', proveedor: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', monto: '', estado: 'pendiente', notas: '' })
+      toast('✓ Factura registrada correctamente', 'success')
       await loadData()
-      setTimeout(() => setExito(false), 3000)
+    } else {
+      toast('Error al registrar factura', 'error')
     }
     setGuardando(false)
   }
@@ -84,19 +84,24 @@ export default function Facturacion({ session }) {
   async function cambiarEstado(id, estado) {
     await supabase.from('facturas').update({ estado }).eq('id', id)
     setFacturas(prev => prev.map(f => f.id === id ? { ...f, estado } : f))
+    toast(`Estado actualizado a ${estado}`, 'info')
   }
 
-  async function verPDF(url) {
-    window.open(url, '_blank')
-  }
-
-  if (loading) return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Cargando...</div>
+  if (loading) return (
+    <Layout perfil={null} estacion={null}>
+      <div className="p-6 max-w-3xl">
+        <div className="h-6 bg-gray-200 rounded w-48 mb-6 animate-pulse"></div>
+        <SkeletonTable rows={5} />
+      </div>
+    </Layout>
+  )
 
   const totalPendiente = facturas.filter(f => f.estado !== 'pagada').reduce((s, f) => s + parseFloat(f.monto), 0)
   const vencidas = facturas.filter(f => f.estado === 'vencida').length
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
+      <ToastContainer toasts={toasts} />
       <div className="p-6 max-w-3xl">
         <div className="flex items-start justify-between mb-5">
           <div>
@@ -111,8 +116,6 @@ export default function Facturacion({ session }) {
             + Agregar factura
           </button>
         </div>
-
-        {exito && <div className="mb-4 text-sm text-green-700 bg-green-50 rounded-lg px-4 py-2.5">✓ Factura registrada correctamente</div>}
 
         {showForm && (
           <form onSubmit={guardar} className="bg-white rounded-xl border border-blue-100 p-5 mb-5">
@@ -152,14 +155,11 @@ export default function Facturacion({ session }) {
                   <option value="vencida">Vencida</option>
                 </select>
               </div>
-
-              {/* Upload PDF */}
               <div className="col-span-2">
                 <label className="text-xs text-gray-500 block mb-1">Adjuntar PDF (opcional)</label>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-blue-300 transition-colors">
                   <input type="file" accept=".pdf,image/*" id="pdf-upload"
-                    onChange={e => setArchivoPDF(e.target.files[0])}
-                    className="hidden" />
+                    onChange={e => setArchivoPDF(e.target.files[0])} className="hidden" />
                   <label htmlFor="pdf-upload" className="cursor-pointer">
                     {archivoPDF ? (
                       <div className="flex items-center justify-center gap-2">
@@ -167,8 +167,7 @@ export default function Facturacion({ session }) {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span className="text-sm text-green-700 font-medium">{archivoPDF.name}</span>
-                        <button type="button" onClick={() => setArchivoPDF(null)}
-                          className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
+                        <button type="button" onClick={() => setArchivoPDF(null)} className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
                       </div>
                     ) : (
                       <div>
@@ -182,19 +181,18 @@ export default function Facturacion({ session }) {
                   </label>
                 </div>
               </div>
-
               <div className="col-span-2">
                 <label className="text-xs text-gray-500 block mb-1">Notas (opcional)</label>
                 <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={2}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
               </div>
             </div>
-
             <div className="flex gap-2 justify-end mt-3">
               <button type="button" onClick={() => { setShowForm(false); setArchivoPDF(null) }}
                 className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
               <button type="submit" disabled={guardando || subiendoPDF}
-                className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                {(guardando || subiendoPDF) && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                 {subiendoPDF ? 'Subiendo PDF...' : guardando ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
@@ -235,24 +233,9 @@ export default function Facturacion({ session }) {
                   </td>
                   <td className="px-3 py-3 text-center">
                     {f.archivo_url ? (
-                      <button onClick={() => verPDF(f.archivo_url)}
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        Ver
-                      </button>
-                    ) : (
-                      <span className="text-xs text-gray-300">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </Layout>
-  )
-}
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => window.open(f.archivo_url, '_blank')}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
