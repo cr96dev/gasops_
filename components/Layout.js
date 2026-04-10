@@ -59,7 +59,7 @@ export default function Layout({ children, perfil, estacion }) {
               className="w-full object-contain mb-1"
               style={{
                 height: '80px',
-                filter: darkMode ? 'brightness(10)' : 'none',
+                filter: 'none',
                 transition: 'filter 0.2s'
               }}
             />
@@ -127,7 +127,7 @@ export default function Layout({ children, perfil, estacion }) {
               alt="GasOps"
               style={{
                 height: '32px',
-                filter: darkMode ? 'brightness(10)' : 'none',
+                filter: 'none',
                 transition: 'filter 0.2s'
               }}
             />
