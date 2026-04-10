@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 
 const tiposLabel = { regular: 'Regular', premium: 'Super', diesel: 'Diesel', diesel_plus: 'V-Power' }
 const estadoColor = { pendiente: 'text-amber-600 bg-amber-50', confirmada: 'text-green-700 bg-green-50', cancelada: 'text-red-600 bg-red-50' }
+const tipoTanque = { regular: 'regular', premium: 'super', diesel: 'diesel', diesel_plus: 'vpower' }
 
 export default function Entregas({ session }) {
   const router = useRouter()
@@ -39,6 +40,7 @@ export default function Entregas({ session }) {
   async function guardar(e) {
     e.preventDefault()
     setGuardando(true)
+
     const { error } = await supabase.from('entregas').insert({
       estacion_id: perfil.estacion_id,
       proveedor: form.proveedor,
@@ -50,7 +52,49 @@ export default function Entregas({ session }) {
       notas: form.notas,
       creado_por: session.user.id,
     })
-    if (!error) { setShowForm(false); setExito(true); await loadData(); setTimeout(() => setExito(false), 3000) }
+
+    if (!error) {
+      // Actualizar nivel del tanque correspondiente
+      const tipo = tipoTanque[form.tipo_combustible]
+      const galones = parseFloat(form.volumen_litros)
+
+      if (tipo && galones > 0) {
+        const { data: tanqueActual } = await supabase
+          .from('tanques')
+          .select('nivel_galones, capacidad_galones')
+          .eq('estacion_id', perfil.estacion_id)
+          .eq('tipo', tipo)
+          .single()
+
+        if (tanqueActual) {
+          const nuevoNivel = Math.min(
+            parseFloat(tanqueActual.nivel_galones) + galones,
+            parseFloat(tanqueActual.capacidad_galones)
+          )
+
+          await supabase.from('tanques').update({
+            nivel_galones: nuevoNivel,
+            updated_at: new Date().toISOString()
+          })
+          .eq('estacion_id', perfil.estacion_id)
+          .eq('tipo', tipo)
+
+          await supabase.from('tanques_historial').insert({
+            estacion_id: perfil.estacion_id,
+            tipo: tipo,
+            nivel_galones: nuevoNivel,
+            capacidad_galones: tanqueActual.capacidad_galones,
+            creado_por: session.user.id,
+          })
+        }
+      }
+
+      setShowForm(false)
+      setExito(true)
+      await loadData()
+      setTimeout(() => setExito(false), 3000)
+    }
+
     setGuardando(false)
   }
 
@@ -74,7 +118,11 @@ export default function Entregas({ session }) {
           </button>
         </div>
 
-        {exito && <div className="mb-4 text-sm text-green-700 bg-green-50 rounded-lg px-4 py-2.5">✓ Entrega registrada correctamente</div>}
+        {exito && (
+          <div className="mb-4 text-sm text-green-700 bg-green-50 rounded-lg px-4 py-2.5">
+            ✓ Entrega registrada y nivel de tanque actualizado
+          </div>
+        )}
 
         {showForm && (
           <form onSubmit={guardar} className="bg-white rounded-xl border border-blue-100 p-5 mb-5">
@@ -114,7 +162,7 @@ export default function Entregas({ session }) {
                   className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" placeholder="4000" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Precio por litro (Q)</label>
+                <label className="text-xs text-gray-500 block mb-1">Precio por galón (Q)</label>
                 <input type="number" min="0" step="0.0001" value={form.precio_por_litro} onChange={e => setForm(f => ({ ...f, precio_por_litro: e.target.value }))} required
                   className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" placeholder="3.88" />
               </div>
@@ -123,6 +171,9 @@ export default function Entregas({ session }) {
                   Costo total estimado: <span className="font-medium text-gray-800">Q{(parseFloat(form.volumen_litros) * parseFloat(form.precio_por_litro)).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
                 </div>
               )}
+              <div className="col-span-2 bg-blue-50 rounded-lg px-4 py-2 text-xs text-blue-700">
+                Al guardar, los galones se sumarán automáticamente al nivel del tanque de {tiposLabel[form.tipo_combustible]}.
+              </div>
               <div className="col-span-2">
                 <label className="text-xs text-gray-500 block mb-1">Notas (opcional)</label>
                 <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={2}
@@ -131,7 +182,9 @@ export default function Entregas({ session }) {
             </div>
             <div className="flex gap-2 justify-end mt-3">
               <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={guardando} className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{guardando ? 'Guardando...' : 'Guardar entrega'}</button>
+              <button type="submit" disabled={guardando} className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {guardando ? 'Guardando...' : 'Guardar entrega'}
+              </button>
             </div>
           </form>
         )}
