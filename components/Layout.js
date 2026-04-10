@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 const navItems = [
   { href: '/dashboard',   label: 'Inicio',      icon: 'M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 3h2v-2h-2v-2h-2v2h-2v2h2v2h2v-2z' },
   { href: '/ventas',      label: 'Ventas',       icon: 'M3 17l4-8 4 4 4-7 4 6' },
-  { href: '/tanques',     label: 'Tanques',      icon: 'M12 2C8 2 4 5 4 9c0 5 8 13 8 13s8-8 8-13c0-4-4-7-8-7zm0 9a2 2 0 110-4 2 2 0 010 4z' },
+  { href: '/tanques',     label: 'Tanques',      icon: 'M11 2a9 9 0 100 18A9 9 0 0011 2zm1 2.07V11h6.93A7 7 0 0112 4.07zM4 12a7 7 0 017-7v7l-4.95 4.95A6.97 6.97 0 014 12z' },
   { href: '/inventario',  label: 'Inventario',   icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4V5z' },
   { href: '/entregas',    label: 'Entregas',     icon: 'M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z' },
   { href: '/facturacion', label: 'Facturas',     icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z' },
@@ -48,17 +48,23 @@ export default function Layout({ children, perfil, estacion }) {
     <div className="flex min-h-screen bg-gray-50">
 
       {/* Sidebar — solo desktop */}
-      <aside className="hidden md:flex w-52 bg-white border-r border-gray-100 flex-col flex-shrink-0">
+      <aside className="hidden md:flex w-56 bg-white border-r border-gray-100 flex-col flex-shrink-0">
 
-        <div className="px-4 py-4 border-b border-gray-100 flex flex-col items-center">
+        {/* Logo */}
+        <div className="px-4 py-5 border-b border-gray-100 flex flex-col items-center">
           <button onClick={() => router.push('/dashboard')} className="w-full">
             <img
-              src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
-              alt="Hidrocom"
-              className="h-24 w-full object-contain mb-1 hover:opacity-80 transition-opacity cursor-pointer"
+              src="/logo.svg"
+              alt="GasOps"
+              className="w-full object-contain mb-1"
+              style={{
+                height: '80px',
+                filter: darkMode ? 'brightness(10)' : 'none',
+                transition: 'filter 0.2s'
+              }}
             />
           </button>
-          <div className="text-xs text-gray-400 text-center truncate w-full">
+          <div className="text-xs text-gray-400 text-center truncate w-full mt-1">
             {esAdmin ? 'Administrador' : (estacion?.nombre || '...')}
           </div>
         </div>
@@ -100,7 +106,7 @@ export default function Layout({ children, perfil, estacion }) {
             className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-gray-50 mb-2 transition-colors">
             <span className="text-xs text-gray-500">{darkMode ? 'Modo día' : 'Modo noche'}</span>
             <div className={`w-8 h-4 rounded-full transition-colors relative ${darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}>
-              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
+              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform shadow-sm ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
             </div>
           </button>
           <div className="text-xs text-gray-500 truncate mb-1">{perfil?.nombre_completo}</div>
@@ -117,9 +123,13 @@ export default function Layout({ children, perfil, estacion }) {
         <div className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
           <button onClick={() => router.push('/dashboard')}>
             <img
-              src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
-              alt="Hidrocom"
-              className="h-8 object-contain hover:opacity-80 transition-opacity cursor-pointer"
+              src="/logo.svg"
+              alt="GasOps"
+              style={{
+                height: '32px',
+                filter: darkMode ? 'brightness(10)' : 'none',
+                transition: 'filter 0.2s'
+              }}
             />
           </button>
           <div className="flex items-center gap-2">
