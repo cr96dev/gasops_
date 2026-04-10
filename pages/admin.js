@@ -104,6 +104,11 @@ export default function Admin({ session }) {
   const [segundos, setSegundos] = useState(30)
   const [exportando, setExportando] = useState(null)
 
+  // Facturas con PDF
+  const [facturasDetalle, setFacturasDetalle] = useState([])
+  const [estacionFacturas, setEstacionFacturas] = useState(null)
+  const [loadingFacturas, setLoadingFacturas] = useState(false)
+
   const getAyer = () => {
     const d = new Date()
     d.setDate(d.getDate() - 1)
@@ -179,6 +184,17 @@ export default function Admin({ session }) {
     return () => clearInterval(tick)
   }, [perfil])
 
+  async function verFacturasEstacion(est) {
+    setEstacionFacturas(est)
+    setLoadingFacturas(true)
+    const { data } = await supabase.from('facturas')
+      .select('*')
+      .eq('estacion_id', est.id)
+      .order('fecha_emision', { ascending: false })
+    setFacturasDetalle(data || [])
+    setLoadingFacturas(false)
+  }
+
   function descargarCSV(datos, nombreArchivo) {
     if (!datos || datos.length === 0) return
     const keys = Object.keys(datos[0])
@@ -225,36 +241,32 @@ export default function Admin({ session }) {
     setExportando(`${estacion.id}-${tipo}`)
     const nombre = estacion.nombre.replace(/\s+/g, '_')
     const fecha = new Date().toISOString().split('T')[0]
-
     if (tipo === 'ventas') {
       const { data } = await supabase.from('ventas')
         .select(`fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, ${metodosPago.join(', ')}, notas`)
         .eq('estacion_id', estacion.id).order('fecha', { ascending: false })
-      const datos = (data || []).map(v => ventaAFila(v, null))
-      descargarCSV(datos, `ventas_${nombre}_${fecha}.csv`)
+      descargarCSV((data || []).map(v => ventaAFila(v, null)), `ventas_${nombre}_${fecha}.csv`)
     }
     if (tipo === 'entregas') {
       const { data } = await supabase.from('entregas')
         .select('fecha_entrega, proveedor, tipo_combustible, volumen_litros, precio_por_litro, costo_total, estado, notas')
         .eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false })
-      const datos = (data || []).map(e => ({
+      descargarCSV((data || []).map(e => ({
         Fecha: e.fecha_entrega, Proveedor: e.proveedor,
         Combustible: e.tipo_combustible.replace('_', ' '),
         'Galones': e.volumen_litros, 'Precio por galón (Q)': e.precio_por_litro,
         'Costo total (Q)': e.costo_total, Estado: e.estado, Notas: e.notas || ''
-      }))
-      descargarCSV(datos, `entregas_${nombre}_${fecha}.csv`)
+      })), `entregas_${nombre}_${fecha}.csv`)
     }
     if (tipo === 'facturas') {
       const { data } = await supabase.from('facturas')
         .select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
         .eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false })
-      const datos = (data || []).map(f => ({
+      descargarCSV((data || []).map(f => ({
         'No. Factura': f.numero_factura, Proveedor: f.proveedor,
         'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
         'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas || ''
-      }))
-      descargarCSV(datos, `facturas_${nombre}_${fecha}.csv`)
+      })), `facturas_${nombre}_${fecha}.csv`)
     }
     setExportando(null)
   }
@@ -337,11 +349,96 @@ export default function Admin({ session }) {
   const mesActual = new Date().toLocaleDateString('es-GT', { month: 'long', year: 'numeric' })
   const diasTranscurridos = new Date().getDate() - 1
 
+  const estadoColor = { pendiente: 'bg-amber-50 text-amber-600', pagada: 'bg-green-50 text-green-700', vencida: 'bg-red-50 text-red-600' }
+
   return (
     <Layout perfil={perfil} estacion={null}>
       <div className="p-6">
 
-        {vistaDetalle && (
+        {/* Vista facturas con PDF de una estación */}
+        {estacionFacturas && (
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={() => { setEstacionFacturas(null); setFacturasDetalle([]) }}
+                className="text-sm text-blue-600 hover:text-blue-800">← Volver</button>
+              <h2 className="text-base font-medium text-gray-900">
+                Facturas — {estacionFacturas.nombre}
+              </h2>
+            </div>
+            {loadingFacturas ? (
+              <div className="text-sm text-gray-400 py-4">Cargando facturas...</div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                {facturasDetalle.length === 0 && (
+                  <div className="px-5 py-6 text-center text-xs text-gray-400">Sin facturas registradas</div>
+                )}
+                {facturasDetalle.length > 0 && (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Factura</th>
+                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Proveedor</th>
+                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Emisión</th>
+                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Vencimiento</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Monto Q</th>
+                        <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
+                        <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Archivo</th>
+                        <th className="px-4 py-2.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {facturasDetalle.map(f => (
+                        <tr key={f.id} className={`border-b border-gray-50 hover:bg-gray-50 ${f.estado === 'vencida' ? 'bg-red-50/30' : ''}`}>
+                          <td className="px-4 py-3 font-medium text-gray-800">{f.numero_factura}</td>
+                          <td className="px-3 py-3 text-gray-600">{f.proveedor}</td>
+                          <td className="px-3 py-3 text-gray-600">{f.fecha_emision}</td>
+                          <td className="px-3 py-3 text-gray-600">{f.fecha_vencimiento}</td>
+                          <td className="px-3 py-3 text-right font-medium text-gray-800">Q{Math.round(f.monto).toLocaleString('es-GT')}</td>
+                          <td className="px-3 py-3 text-center">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estadoColor[f.estado]}`}>
+                              {f.estado}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            {f.archivo_url ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <button onClick={() => window.open(f.archivo_url, '_blank')}
+                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  Ver
+                                </button>
+                                <a href={f.archivo_url} download
+                                  className="text-xs text-green-600 hover:text-green-800 font-medium flex items-center gap-1">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                  Descargar
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-300">Sin archivo</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button onClick={() => eliminar('facturas', f.id)} disabled={eliminando === f.id}
+                              className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40">
+                              {eliminando === f.id ? '...' : 'Eliminar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {vistaDetalle && !estacionFacturas && (
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
               <button onClick={() => { setVistaDetalle(null); setEstacionSeleccionada(null) }}
@@ -452,7 +549,7 @@ export default function Admin({ session }) {
                           <td className="px-3 py-3 text-gray-600">{f.fecha_vencimiento}</td>
                           <td className="px-3 py-3 text-right font-medium text-gray-800">Q{Math.round(f.monto).toLocaleString('es-GT')}</td>
                           <td className="px-3 py-3 text-center">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${f.estado === 'pagada' ? 'bg-green-50 text-green-700' : f.estado === 'vencida' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estadoColor[f.estado]}`}>
                               {f.estado}
                             </span>
                           </td>
@@ -472,7 +569,7 @@ export default function Admin({ session }) {
           </div>
         )}
 
-        {!vistaDetalle && (
+        {!vistaDetalle && !estacionFacturas && (
           <>
             <div className="flex items-start justify-between mb-5">
               <div>
@@ -543,7 +640,7 @@ export default function Admin({ session }) {
             </div>
 
             <div className="flex gap-1 mb-4 border-b border-gray-100 overflow-x-auto">
-              {[['ayer', 'Ventas de ayer'], ['mensual', 'Acumulado mensual'], ['tanques', 'Tanques'], ['gestionar', 'Gestionar registros'], ['facturas', 'Facturas pendientes']].map(([key, label]) => (
+              {[['ayer', 'Ventas de ayer'], ['mensual', 'Acumulado mensual'], ['tanques', 'Tanques'], ['facturas-pdf', 'Facturas y PDFs'], ['gestionar', 'Gestionar registros'], ['facturas', 'Facturas pendientes']].map(([key, label]) => (
                 <button key={key} onClick={() => setTab(key)}
                   className={`px-4 py-2 text-sm border-b-2 transition-colors whitespace-nowrap ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                   {label}
@@ -614,6 +711,27 @@ export default function Admin({ session }) {
                 <p className="text-xs text-gray-400 mb-3">Haz clic en cada estación para ver su historial de niveles de tanques.</p>
                 {estaciones.map(est => (
                   <TanquesEstacion key={est.id} estacion={est} />
+                ))}
+              </div>
+            )}
+
+            {tab === 'facturas-pdf' && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-400 mb-3">Selecciona una estación para ver sus facturas y descargar los PDFs adjuntos.</p>
+                {estaciones.map(est => (
+                  <div key={est.id} className="bg-white rounded-xl border border-gray-100 px-5 py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">{est.nombre}</div>
+                      <div className="text-xs text-gray-400">{est.zona}</div>
+                    </div>
+                    <button onClick={() => verFacturasEstacion(est)}
+                      className="text-xs px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 text-blue-700 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Ver facturas
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
