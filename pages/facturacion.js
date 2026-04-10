@@ -15,6 +15,8 @@ export default function Facturacion({ session }) {
   const [showForm, setShowForm] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [exito, setExito] = useState(false)
+  const [archivoPDF, setArchivoPDF] = useState(null)
+  const [subiendoPDF, setSubiendoPDF] = useState(false)
   const [form, setForm] = useState({
     numero_factura: '', proveedor: '',
     fecha_emision: new Date().toISOString().split('T')[0],
@@ -39,7 +41,24 @@ export default function Facturacion({ session }) {
   async function guardar(e) {
     e.preventDefault()
     setGuardando(true)
-    await supabase.from('facturas').insert({
+    let archivo_url = null
+
+    // Subir PDF si hay uno
+    if (archivoPDF) {
+      setSubiendoPDF(true)
+      const ext = archivoPDF.name.split('.').pop()
+      const fileName = `${perfil.estacion_id}/${Date.now()}.${ext}`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('facturas')
+        .upload(fileName, archivoPDF, { contentType: archivoPDF.type })
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('facturas').getPublicUrl(fileName)
+        archivo_url = urlData?.publicUrl || null
+      }
+      setSubiendoPDF(false)
+    }
+
+    const { error } = await supabase.from('facturas').insert({
       estacion_id: perfil.estacion_id,
       numero_factura: form.numero_factura,
       proveedor: form.proveedor,
@@ -48,16 +67,27 @@ export default function Facturacion({ session }) {
       monto: parseFloat(form.monto),
       estado: form.estado,
       notas: form.notas,
+      archivo_url,
       creado_por: session.user.id,
     })
-    setShowForm(false); setExito(true); await loadData()
-    setTimeout(() => setExito(false), 3000)
+
+    if (!error) {
+      setShowForm(false)
+      setArchivoPDF(null)
+      setExito(true)
+      await loadData()
+      setTimeout(() => setExito(false), 3000)
+    }
     setGuardando(false)
   }
 
   async function cambiarEstado(id, estado) {
     await supabase.from('facturas').update({ estado }).eq('id', id)
     setFacturas(prev => prev.map(f => f.id === id ? { ...f, estado } : f))
+  }
+
+  async function verPDF(url) {
+    window.open(url, '_blank')
   }
 
   if (loading) return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Cargando...</div>
@@ -122,15 +152,51 @@ export default function Facturacion({ session }) {
                   <option value="vencida">Vencida</option>
                 </select>
               </div>
+
+              {/* Upload PDF */}
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">Adjuntar PDF (opcional)</label>
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center hover:border-blue-300 transition-colors">
+                  <input type="file" accept=".pdf,image/*" id="pdf-upload"
+                    onChange={e => setArchivoPDF(e.target.files[0])}
+                    className="hidden" />
+                  <label htmlFor="pdf-upload" className="cursor-pointer">
+                    {archivoPDF ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm text-green-700 font-medium">{archivoPDF.name}</span>
+                        <button type="button" onClick={() => setArchivoPDF(null)}
+                          className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
+                      </div>
+                    ) : (
+                      <div>
+                        <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-8m0 0l-3 3m3-3l3 3M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-xs text-gray-400">Haz clic para subir PDF o imagen</p>
+                        <p className="text-xs text-gray-300 mt-0.5">PDF, JPG, PNG</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+
               <div className="col-span-2">
                 <label className="text-xs text-gray-500 block mb-1">Notas (opcional)</label>
                 <textarea value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} rows={2}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
               </div>
             </div>
+
             <div className="flex gap-2 justify-end mt-3">
-              <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button type="submit" disabled={guardando} className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{guardando ? 'Guardando...' : 'Guardar'}</button>
+              <button type="button" onClick={() => { setShowForm(false); setArchivoPDF(null) }}
+                className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
+              <button type="submit" disabled={guardando || subiendoPDF}
+                className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {subiendoPDF ? 'Subiendo PDF...' : guardando ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
           </form>
         )}
@@ -139,32 +205,47 @@ export default function Facturacion({ session }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Factura</th>
+                <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Factura</th>
                 <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Proveedor</th>
                 <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Emisión</th>
-                <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Vencimiento</th>
+                <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Vence</th>
                 <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Monto</th>
-                <th className="px-5 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
+                <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
+                <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">PDF</th>
               </tr>
             </thead>
             <tbody>
               {facturas.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-6 text-center text-xs text-gray-400">Sin facturas registradas aún</td></tr>
+                <tr><td colSpan={7} className="px-5 py-6 text-center text-xs text-gray-400">Sin facturas registradas aún</td></tr>
               )}
               {facturas.map(f => (
                 <tr key={f.id} className={`border-b border-gray-50 hover:bg-gray-50 ${f.estado === 'vencida' ? 'bg-red-50/30' : ''}`}>
-                  <td className="px-5 py-3 font-medium text-gray-800">{f.numero_factura}</td>
+                  <td className="px-4 py-3 font-medium text-gray-800">{f.numero_factura}</td>
                   <td className="px-3 py-3 text-gray-600">{f.proveedor}</td>
                   <td className="px-3 py-3 text-gray-600">{f.fecha_emision}</td>
                   <td className="px-3 py-3 text-gray-600">{f.fecha_vencimiento}</td>
                   <td className="px-3 py-3 text-right font-medium text-gray-800">Q{parseFloat(f.monto).toLocaleString('es-GT', { maximumFractionDigits: 0 })}</td>
-                  <td className="px-5 py-3 text-center">
+                  <td className="px-3 py-3 text-center">
                     <select value={f.estado} onChange={e => cambiarEstado(f.id, e.target.value)}
                       className={`text-xs px-2.5 py-0.5 rounded-full font-medium border-0 cursor-pointer focus:outline-none ${estadoColor[f.estado]}`}>
                       <option value="pendiente">Pendiente</option>
                       <option value="pagada">Pagada</option>
                       <option value="vencida">Vencida</option>
                     </select>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    {f.archivo_url ? (
+                      <button onClick={() => verPDF(f.archivo_url)}
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        Ver
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
