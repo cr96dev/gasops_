@@ -8,7 +8,6 @@ function TanquesEstacion({ estacion }) {
   const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
   const [abierto, setAbierto] = useState(false)
-
   const tipoColor = { vpower: '#DC2626', super: '#16A34A', regular: '#CA8A04', diesel: '#1C1917' }
   const tipoLabel = { vpower: 'V-Power', super: 'Super', regular: 'Regular', diesel: 'Diesel' }
 
@@ -80,10 +79,10 @@ const metodosLabel = { neonet:'Neonet', bac:'BAC', deposito:'Depósito', cupon:'
 function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
   const [form, setForm] = useState({ ...registro })
   const [guardando, setGuardando] = useState(false)
-  const { toasts, toast } = useToast()
+  const [errorMsg, setErrorMsg] = useState('')
 
   async function guardar() {
-    setGuardando(true)
+    setGuardando(true); setErrorMsg('')
     let error = null
 
     if (tipo === 'ventas') {
@@ -111,7 +110,7 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
         premium_galones: parseFloat(form.premium_galones) || 0,
         diesel_galones: parseFloat(form.diesel_galones) || 0,
         diesel_plus_galones: parseFloat(form.diesel_plus_galones) || 0,
-        total_galones: (parseFloat(form.regular_galones) || 0) + (parseFloat(form.premium_galones) || 0) + (parseFloat(form.diesel_galones) || 0) + (parseFloat(form.diesel_plus_galones) || 0),
+        total_galones: (parseFloat(form.regular_galones)||0)+(parseFloat(form.premium_galones)||0)+(parseFloat(form.diesel_galones)||0)+(parseFloat(form.diesel_plus_galones)||0),
         estado: form.estado,
         notas: form.notas,
       }).eq('id', registro.id)
@@ -131,8 +130,19 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
       error = e
     }
 
+    if (tipo === 'lubricantes') {
+      const { error: e } = await supabase.from('ventas_lubricantes').update({
+        fecha: form.fecha,
+        neonet: parseFloat(form.neonet) || 0,
+        efectivo: parseFloat(form.efectivo) || 0,
+        total_venta: parseFloat(form.total_venta) || 0,
+        notas: form.notas,
+      }).eq('id', registro.id)
+      error = e
+    }
+
     if (error) {
-      toast(`Error: ${error.message}`, 'error')
+      setErrorMsg(`Error: ${error.message}`)
     } else {
       onGuardado()
       onClose()
@@ -153,16 +163,14 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <ToastContainer toasts={toasts} />
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900">
-            Editar {tipo === 'ventas' ? 'ventas' : tipo === 'entregas' ? 'entrega' : 'factura'}
+            Editar {tipo === 'ventas' ? 'ventas' : tipo === 'entregas' ? 'entrega' : tipo === 'lubricantes' ? 'lubricantes' : 'factura'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </div>
 
         <div className="px-6 py-5 space-y-4">
-
           {tipo === 'ventas' && (
             <>
               {campo('Fecha', 'fecha', 'date')}
@@ -173,9 +181,9 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
                 {[['Regular','regular'],['Super','premium'],['Diesel','diesel'],['V-Power','diesel_plus']].map(([label, key]) => (
                   <div key={key} className="grid grid-cols-3 gap-2 px-4 py-2.5 border-b border-gray-50 items-center">
                     <span className="text-sm text-gray-700">{label}</span>
-                    <input type="number" value={form[`${key}_litros`] || ''} onChange={e => setForm(f => ({ ...f, [`${key}_litros`]: e.target.value }))}
+                    <input type="number" value={form[`${key}_litros`]||''} onChange={e => setForm(f => ({ ...f, [`${key}_litros`]: e.target.value }))}
                       className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-400" />
-                    <input type="number" value={form[`${key}_ingresos`] || ''} onChange={e => setForm(f => ({ ...f, [`${key}_ingresos`]: e.target.value }))}
+                    <input type="number" value={form[`${key}_ingresos`]||''} onChange={e => setForm(f => ({ ...f, [`${key}_ingresos`]: e.target.value }))}
                       className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-400" />
                   </div>
                 ))}
@@ -187,7 +195,7 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
                 {metodosPago.map(m => (
                   <div key={m} className="grid grid-cols-2 gap-2 px-4 py-2 border-b border-gray-50 items-center">
                     <span className="text-sm text-gray-700">{metodosLabel[m]}</span>
-                    <input type="number" value={form[m] || ''} onChange={e => setForm(f => ({ ...f, [m]: e.target.value }))}
+                    <input type="number" value={form[m]||''} onChange={e => setForm(f => ({ ...f, [m]: e.target.value }))}
                       className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-400" />
                   </div>
                 ))}
@@ -209,14 +217,14 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
                 {[['Regular','regular'],['Super','premium'],['Diesel','diesel'],['V-Power','diesel_plus']].map(([label, key]) => (
                   <div key={key} className="grid grid-cols-2 gap-2 px-4 py-2.5 border-b border-gray-50 items-center">
                     <span className="text-sm text-gray-700">{label}</span>
-                    <input type="number" value={form[`${key}_galones`] || ''} onChange={e => setForm(f => ({ ...f, [`${key}_galones`]: e.target.value }))}
+                    <input type="number" value={form[`${key}_galones`]||''} onChange={e => setForm(f => ({ ...f, [`${key}_galones`]: e.target.value }))}
                       className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-blue-400" />
                   </div>
                 ))}
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Estado</label>
-                <select value={form.estado || ''} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+                <select value={form.estado||''} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400">
                   <option value="confirmada">Confirmada</option>
                   <option value="pendiente">Pendiente</option>
@@ -237,7 +245,7 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
                 {campo('Monto (Q)', 'monto', 'number')}
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">Estado</label>
-                  <select value={form.estado || ''} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+                  <select value={form.estado||''} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
                     className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400">
                     <option value="pendiente">Pendiente</option>
                     <option value="pagada">Pagada</option>
@@ -248,6 +256,20 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
               {campo('Notas', 'notas')}
             </>
           )}
+
+          {tipo === 'lubricantes' && (
+            <>
+              {campo('Fecha', 'fecha', 'date')}
+              <div className="grid grid-cols-2 gap-3">
+                {campo('Total venta (Q)', 'total_venta', 'number')}
+                {campo('Neonet (Q)', 'neonet', 'number')}
+                {campo('Efectivo (Q)', 'efectivo', 'number')}
+              </div>
+              {campo('Notas', 'notas')}
+            </>
+          )}
+
+          {errorMsg && <div className="bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-xs text-red-700">{errorMsg}</div>}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
@@ -262,6 +284,8 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
     </div>
   )
 }
+
+const TIPOS_GESTION = ['ventas', 'lubricantes', 'entregas', 'facturas', 'inventario']
 
 export default function Admin({ session }) {
   const router = useRouter()
@@ -293,16 +317,16 @@ export default function Admin({ session }) {
     const ayer = getAyer(); const primerDia = getPrimerDiaMes()
     const { data: ventasAyer } = await supabase.from('ventas').select('*').eq('fecha', ayer)
     const ventasMap = {}
-    ;(ventasAyer || []).forEach(v => { ventasMap[v.estacion_id] = v })
+    ;(ventasAyer||[]).forEach(v => { ventasMap[v.estacion_id] = v })
     setResumen(ventasMap)
     const { data: ventasMes } = await supabase.from('ventas')
       .select('estacion_id, regular_ingresos, premium_ingresos, diesel_ingresos, diesel_plus_ingresos, regular_litros, premium_litros, diesel_litros, diesel_plus_litros')
       .gte('fecha', primerDia)
     const mensualMap = {}
-    ;(ventasMes || []).forEach(v => {
+    ;(ventasMes||[]).forEach(v => {
       if (!mensualMap[v.estacion_id]) mensualMap[v.estacion_id] = { ingresos: 0, galones: 0 }
-      mensualMap[v.estacion_id].ingresos += v.regular_ingresos + v.premium_ingresos + v.diesel_ingresos + v.diesel_plus_ingresos
-      mensualMap[v.estacion_id].galones += v.regular_litros + v.premium_litros + v.diesel_litros + v.diesel_plus_litros
+      mensualMap[v.estacion_id].ingresos += v.regular_ingresos+v.premium_ingresos+v.diesel_ingresos+v.diesel_plus_ingresos
+      mensualMap[v.estacion_id].galones += v.regular_litros+v.premium_litros+v.diesel_litros+v.diesel_plus_litros
     })
     setMensual(mensualMap)
     setUltimaActualizacion(new Date().toLocaleTimeString('es-GT'))
@@ -312,7 +336,7 @@ export default function Admin({ session }) {
   const cargarFacturasResumen = useCallback(async () => {
     const { data: facts } = await supabase.from('facturas').select('estacion_id, estado, monto').in('estado', ['pendiente','vencida'])
     const factMap = {}
-    ;(facts || []).forEach(f => {
+    ;(facts||[]).forEach(f => {
       if (!factMap[f.estacion_id]) factMap[f.estacion_id] = { pendiente: 0, vencida: 0, total: 0 }
       factMap[f.estacion_id][f.estado] += 1
       factMap[f.estacion_id].total += parseFloat(f.monto)
@@ -327,7 +351,7 @@ export default function Admin({ session }) {
       if (!p || p.rol !== 'admin') { router.push('/dashboard'); return }
       setPerfil(p)
       const { data: ests } = await supabase.from('estaciones').select('*').eq('activa', true).order('nombre')
-      setEstaciones(ests || [])
+      setEstaciones(ests||[])
       await cargarDatos(); await cargarFacturasResumen()
       setLoading(false)
     }
@@ -349,7 +373,7 @@ export default function Admin({ session }) {
   async function verFacturasEstacion(est) {
     setEstacionFacturas(est); setLoadingFacturas(true)
     const { data } = await supabase.from('facturas').select('*').eq('estacion_id', est.id).order('fecha_emision', { ascending: false })
-    setFacturasDetalle(data || [])
+    setFacturasDetalle(data||[])
     setLoadingFacturas(false)
   }
 
@@ -385,38 +409,110 @@ export default function Admin({ session }) {
     setExportando(`${estacion.id}-${tipo}`)
     const nombre = estacion.nombre.replace(/\s+/g,'_')
     const fecha = new Date().toISOString().split('T')[0]
+
     if (tipo === 'ventas') {
-      const { data } = await supabase.from('ventas').select(`fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, ${metodosPago.join(', ')}, notas`).eq('estacion_id', estacion.id).order('fecha', { ascending: false })
+      const { data } = await supabase.from('ventas')
+        .select(`fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, ${metodosPago.join(', ')}, notas`)
+        .eq('estacion_id', estacion.id).order('fecha', { ascending: false })
       descargarCSV((data||[]).map(v => ventaAFila(v, null)), `ventas_${nombre}_${fecha}.csv`)
     }
+
+    if (tipo === 'lubricantes') {
+      const { data } = await supabase.from('ventas_lubricantes')
+        .select('fecha, total_venta, neonet, efectivo, notas')
+        .eq('estacion_id', estacion.id).order('fecha', { ascending: false })
+      descargarCSV((data||[]).map(l => ({
+        Fecha: l.fecha, 'Total venta (Q)': l.total_venta,
+        'Neonet (Q)': l.neonet, 'Efectivo (Q)': l.efectivo, Notas: l.notas||''
+      })), `lubricantes_${nombre}_${fecha}.csv`)
+    }
+
     if (tipo === 'entregas') {
-      const { data } = await supabase.from('entregas').select('fecha_entrega, proveedor, total_galones, estado, notas').eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false })
-      descargarCSV((data||[]).map(e => ({ Fecha: e.fecha_entrega, Proveedor: e.proveedor, 'Total galones': e.total_galones, Estado: e.estado, Notas: e.notas||'' })), `entregas_${nombre}_${fecha}.csv`)
+      const { data } = await supabase.from('entregas')
+        .select('fecha_entrega, proveedor, total_galones, regular_galones, premium_galones, diesel_galones, diesel_plus_galones, estado, notas')
+        .eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false })
+      descargarCSV((data||[]).map(e => ({
+        Fecha: e.fecha_entrega, Proveedor: e.proveedor,
+        'Regular (gal)': e.regular_galones||0, 'Super (gal)': e.premium_galones||0,
+        'Diesel (gal)': e.diesel_galones||0, 'V-Power (gal)': e.diesel_plus_galones||0,
+        'Total galones': e.total_galones||0, Estado: e.estado, Notas: e.notas||''
+      })), `entregas_${nombre}_${fecha}.csv`)
     }
+
     if (tipo === 'facturas') {
-      const { data } = await supabase.from('facturas').select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas').eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false })
-      descargarCSV((data||[]).map(f => ({ 'No. Factura': f.numero_factura, Proveedor: f.proveedor, 'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento, 'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas||'' })), `facturas_${nombre}_${fecha}.csv`)
+      const { data } = await supabase.from('facturas')
+        .select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
+        .eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false })
+      descargarCSV((data||[]).map(f => ({
+        'No. Factura': f.numero_factura, Proveedor: f.proveedor,
+        'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
+        'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas||''
+      })), `facturas_${nombre}_${fecha}.csv`)
     }
+
+    if (tipo === 'inventario') {
+      const { data } = await supabase.from('inventario').select('*')
+        .eq('estacion_id', estacion.id).order('created_at', { ascending: false })
+      descargarCSV((data||[]).map(i => ({
+        Fecha: i.created_at?.split('T')[0]||'', Producto: i.producto||'',
+        Cantidad: i.cantidad||0, Unidad: i.unidad||'', Notas: i.notas||''
+      })), `inventario_${nombre}_${fecha}.csv`)
+    }
+
     setExportando(null)
   }
 
   async function exportarTodaLaRed(tipo) {
     setExportando(`red-${tipo}`)
     const todasFilas = []; const fecha = new Date().toISOString().split('T')[0]
+
     for (const est of estaciones) {
       if (tipo === 'ventas') {
-        const { data } = await supabase.from('ventas').select(`fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, ${metodosPago.join(', ')}, notas`).eq('estacion_id', est.id).order('fecha', { ascending: false })
+        const { data } = await supabase.from('ventas')
+          .select(`fecha, regular_litros, regular_ingresos, premium_litros, premium_ingresos, diesel_litros, diesel_ingresos, diesel_plus_litros, diesel_plus_ingresos, ${metodosPago.join(', ')}, notas`)
+          .eq('estacion_id', est.id).order('fecha', { ascending: false })
         ;(data||[]).forEach(v => todasFilas.push(ventaAFila(v, est.nombre)))
       }
+      if (tipo === 'lubricantes') {
+        const { data } = await supabase.from('ventas_lubricantes')
+          .select('fecha, total_venta, neonet, efectivo, notas')
+          .eq('estacion_id', est.id).order('fecha', { ascending: false })
+        ;(data||[]).forEach(l => todasFilas.push({
+          Estacion: est.nombre, Fecha: l.fecha, 'Total venta (Q)': l.total_venta,
+          'Neonet (Q)': l.neonet, 'Efectivo (Q)': l.efectivo, Notas: l.notas||''
+        }))
+      }
       if (tipo === 'entregas') {
-        const { data } = await supabase.from('entregas').select('fecha_entrega, proveedor, total_galones, estado, notas').eq('estacion_id', est.id).order('fecha_entrega', { ascending: false })
-        ;(data||[]).forEach(e => todasFilas.push({ Estacion: est.nombre, Fecha: e.fecha_entrega, Proveedor: e.proveedor, 'Total galones': e.total_galones, Estado: e.estado, Notas: e.notas||'' }))
+        const { data } = await supabase.from('entregas')
+          .select('fecha_entrega, proveedor, total_galones, regular_galones, premium_galones, diesel_galones, diesel_plus_galones, estado, notas')
+          .eq('estacion_id', est.id).order('fecha_entrega', { ascending: false })
+        ;(data||[]).forEach(e => todasFilas.push({
+          Estacion: est.nombre, Fecha: e.fecha_entrega, Proveedor: e.proveedor,
+          'Regular (gal)': e.regular_galones||0, 'Super (gal)': e.premium_galones||0,
+          'Diesel (gal)': e.diesel_galones||0, 'V-Power (gal)': e.diesel_plus_galones||0,
+          'Total galones': e.total_galones||0, Estado: e.estado, Notas: e.notas||''
+        }))
       }
       if (tipo === 'facturas') {
-        const { data } = await supabase.from('facturas').select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas').eq('estacion_id', est.id).order('fecha_emision', { ascending: false })
-        ;(data||[]).forEach(f => todasFilas.push({ Estacion: est.nombre, 'No. Factura': f.numero_factura, Proveedor: f.proveedor, 'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento, 'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas||'' }))
+        const { data } = await supabase.from('facturas')
+          .select('numero_factura, proveedor, fecha_emision, fecha_vencimiento, monto, estado, notas')
+          .eq('estacion_id', est.id).order('fecha_emision', { ascending: false })
+        ;(data||[]).forEach(f => todasFilas.push({
+          Estacion: est.nombre, 'No. Factura': f.numero_factura, Proveedor: f.proveedor,
+          'Fecha emisión': f.fecha_emision, 'Fecha vencimiento': f.fecha_vencimiento,
+          'Monto (Q)': f.monto, Estado: f.estado, Notas: f.notas||''
+        }))
+      }
+      if (tipo === 'inventario') {
+        const { data } = await supabase.from('inventario').select('*')
+          .eq('estacion_id', est.id).order('created_at', { ascending: false })
+        ;(data||[]).forEach(i => todasFilas.push({
+          Estacion: est.nombre, Fecha: i.created_at?.split('T')[0]||'',
+          Producto: i.producto||'', Cantidad: i.cantidad||0, Unidad: i.unidad||'', Notas: i.notas||''
+        }))
       }
     }
+
     descargarCSV(todasFilas, `${tipo}_todas_${fecha}.csv`)
     setExportando(null)
   }
@@ -424,9 +520,22 @@ export default function Admin({ session }) {
   async function abrirDetalle(estacion, tipo) {
     setEstacionSeleccionada(estacion); setVistaDetalle(tipo); setLoadingRegistros(true)
     let data = []
-    if (tipo === 'ventas') { const r = await supabase.from('ventas').select('*').eq('estacion_id', estacion.id).order('fecha', { ascending: false }).limit(30); data = r.data||[] }
-    else if (tipo === 'entregas') { const r = await supabase.from('entregas').select('*').eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false }).limit(30); data = r.data||[] }
-    else if (tipo === 'facturas') { const r = await supabase.from('facturas').select('*').eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false }).limit(30); data = r.data||[] }
+    if (tipo === 'ventas') {
+      const r = await supabase.from('ventas').select('*').eq('estacion_id', estacion.id).order('fecha', { ascending: false }).limit(30)
+      data = r.data||[]
+    } else if (tipo === 'lubricantes') {
+      const r = await supabase.from('ventas_lubricantes').select('*, ventas_lubricantes_detalle(*)').eq('estacion_id', estacion.id).order('fecha', { ascending: false }).limit(30)
+      data = r.data||[]
+    } else if (tipo === 'entregas') {
+      const r = await supabase.from('entregas').select('*').eq('estacion_id', estacion.id).order('fecha_entrega', { ascending: false }).limit(30)
+      data = r.data||[]
+    } else if (tipo === 'facturas') {
+      const r = await supabase.from('facturas').select('*').eq('estacion_id', estacion.id).order('fecha_emision', { ascending: false }).limit(30)
+      data = r.data||[]
+    } else if (tipo === 'inventario') {
+      const r = await supabase.from('inventario').select('*').eq('estacion_id', estacion.id).order('created_at', { ascending: false }).limit(30)
+      data = r.data||[]
+    }
     setRegistros(data); setLoadingRegistros(false)
   }
 
@@ -474,6 +583,7 @@ export default function Admin({ session }) {
 
       <div className="p-6">
 
+        {/* Vista facturas con PDF */}
         {estacionFacturas && (
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
@@ -530,6 +640,7 @@ export default function Admin({ session }) {
           </div>
         )}
 
+        {/* Vista detalle registros */}
         {vistaDetalle && !estacionFacturas && (
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
@@ -558,7 +669,7 @@ export default function Admin({ session }) {
                       {registros.map(v => {
                         const total = v.regular_ingresos+v.premium_ingresos+v.diesel_ingresos+v.diesel_plus_ingresos
                         const cobros = metodosPago.reduce((s,m) => s+(parseFloat(v[m])||0), 0)
-                        const dif = total - cobros
+                        const dif = total-cobros
                         return (
                           <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="px-4 py-3 text-gray-700">{v.fecha}</td>
@@ -585,6 +696,36 @@ export default function Admin({ session }) {
                   </table>
                 )}
 
+                {vistaDetalle === 'lubricantes' && registros.length > 0 && (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total venta</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Neonet</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Efectivo</th>
+                        <th className="px-4 py-2.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registros.map(l => (
+                        <tr key={l.id} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-700">{l.fecha}</td>
+                          <td className="px-3 py-3 text-right font-medium text-gray-800">Q{parseFloat(l.total_venta||0).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-3 text-right text-gray-600">{parseFloat(l.neonet||0)>0?`Q${parseFloat(l.neonet).toLocaleString('es-GT',{maximumFractionDigits:2})}`:'—'}</td>
+                          <td className="px-3 py-3 text-right text-gray-600">{parseFloat(l.efectivo||0)>0?`Q${parseFloat(l.efectivo).toLocaleString('es-GT',{maximumFractionDigits:2})}`:'—'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center gap-2 justify-end">
+                              <button onClick={() => setModalEdicion({ registro: l, tipo: 'lubricantes' })} className="text-xs text-blue-500 hover:text-blue-700">Editar</button>
+                              <button onClick={() => eliminar('ventas_lubricantes', l.id)} disabled={eliminando===l.id} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40">{eliminando===l.id?'...':'Eliminar'}</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
                 {vistaDetalle === 'entregas' && registros.length > 0 && (
                   <table className="w-full text-sm">
                     <thead>
@@ -602,7 +743,9 @@ export default function Admin({ session }) {
                           <td className="px-4 py-3 text-gray-700">{e.fecha_entrega}</td>
                           <td className="px-3 py-3 text-gray-600">{e.proveedor}</td>
                           <td className="px-3 py-3 text-right text-gray-700">{parseFloat(e.total_galones||e.volumen_litros||0).toLocaleString('es-GT')} gal</td>
-                          <td className="px-3 py-3 text-center"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${e.estado==='confirmada'?'bg-green-50 text-green-700':e.estado==='cancelada'?'bg-red-50 text-red-600':'bg-amber-50 text-amber-600'}`}>{e.estado}</span></td>
+                          <td className="px-3 py-3 text-center">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${e.estado==='confirmada'?'bg-green-50 text-green-700':e.estado==='cancelada'?'bg-red-50 text-red-600':'bg-amber-50 text-amber-600'}`}>{e.estado}</span>
+                          </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center gap-2 justify-end">
                               <button onClick={() => setModalEdicion({ registro: e, tipo: 'entregas' })} className="text-xs text-blue-500 hover:text-blue-700">Editar</button>
@@ -642,6 +785,33 @@ export default function Admin({ session }) {
                               <button onClick={() => setModalEdicion({ registro: f, tipo: 'facturas' })} className="text-xs text-blue-500 hover:text-blue-700">Editar</button>
                               <button onClick={() => eliminar('facturas', f.id)} disabled={eliminando===f.id} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40">{eliminando===f.id?'...':'Eliminar'}</button>
                             </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {vistaDetalle === 'inventario' && registros.length > 0 && (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
+                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Producto</th>
+                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Cantidad</th>
+                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Unidad</th>
+                        <th className="px-4 py-2.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registros.map(i => (
+                        <tr key={i.id} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-700">{i.created_at?.split('T')[0]}</td>
+                          <td className="px-3 py-3 text-gray-700">{i.producto}</td>
+                          <td className="px-3 py-3 text-right text-gray-700">{i.cantidad}</td>
+                          <td className="px-3 py-3 text-gray-600">{i.unidad}</td>
+                          <td className="px-4 py-3 text-right">
+                            <button onClick={() => eliminar('inventario', i.id)} disabled={eliminando===i.id} className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40">{eliminando===i.id?'...':'Eliminar'}</button>
                           </td>
                         </tr>
                       ))}
@@ -811,12 +981,13 @@ export default function Admin({ session }) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs text-gray-400">Exporta, edita y elimina registros por estación.</p>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap justify-end">
                     <span className="text-xs text-gray-400 self-center">Toda la red:</span>
-                    {['ventas','entregas','facturas'].map(tipo => (
-                      <button key={tipo} onClick={() => exportarTodaLaRed(tipo)} disabled={exportando===`red-${tipo}`}
+                    {TIPOS_GESTION.map(tipo => (
+                      <button key={tipo} onClick={() => exportarTodaLaRed(tipo)}
+                        disabled={exportando === `red-${tipo}`}
                         className="text-xs px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700 disabled:opacity-40 capitalize">
-                        {exportando===`red-${tipo}` ? '...' : `↓ ${tipo}`}
+                        {exportando === `red-${tipo}` ? '...' : `↓ ${tipo}`}
                       </button>
                     ))}
                   </div>
@@ -829,12 +1000,16 @@ export default function Admin({ session }) {
                         <div className="text-xs text-gray-400">{est.zona}</div>
                       </div>
                       <div className="flex gap-2 flex-wrap justify-end">
-                        {['ventas','entregas','facturas'].map(tipo => (
+                        {TIPOS_GESTION.map(tipo => (
                           <div key={tipo} className="flex gap-1">
-                            <button onClick={() => abrirDetalle(est, tipo)} className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 capitalize">{tipo}</button>
-                            <button onClick={() => exportar(est, tipo)} disabled={exportando===`${est.id}-${tipo}`}
+                            <button onClick={() => abrirDetalle(est, tipo)}
+                              className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 capitalize">
+                              {tipo}
+                            </button>
+                            <button onClick={() => exportar(est, tipo)}
+                              disabled={exportando === `${est.id}-${tipo}`}
                               className="text-xs px-2 py-1.5 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700 disabled:opacity-40">
-                              {exportando===`${est.id}-${tipo}`?'...':'↓'}
+                              {exportando === `${est.id}-${tipo}` ? '...' : '↓'}
                             </button>
                           </div>
                         ))}
