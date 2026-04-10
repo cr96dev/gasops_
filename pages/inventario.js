@@ -68,19 +68,20 @@ export default function Inventario({ session }) {
   const [busqueda, setBusqueda] = useState('')
   const [filtroCat, setFiltroCat] = useState('Todas')
 
-  // Carga inicial
+  // Entrega
+  const [busquedaEntrega, setBusquedaEntrega] = useState('')
+  const [itemsEntrega, setItemsEntrega] = useState([])
+  const [fechaEntrega, setFechaEntrega] = useState(new Date().toISOString().split('T')[0])
+  const [proveedorEntrega, setProveedorEntrega] = useState('')
+  const [notasEntrega, setNotasEntrega] = useState('')
+  const [guardandoEntrega, setGuardandoEntrega] = useState(false)
+  const [errorEntrega, setErrorEntrega] = useState('')
+
+  // Carga inicial Excel
   const [archivoInicial, setArchivoInicial] = useState(null)
   const [previaInicial, setPreviaInicial] = useState([])
   const [cargandoInicial, setCargandoInicial] = useState(false)
   const [errorInicial, setErrorInicial] = useState('')
-
-  // Entrega
-  const [archivoEntrega, setArchivoEntrega] = useState(null)
-  const [previaEntrega, setPreviaEntrega] = useState([])
-  const [cargandoEntrega, setCargandoEntrega] = useState(false)
-  const [errorEntrega, setErrorEntrega] = useState('')
-  const [fechaEntrega, setFechaEntrega] = useState(new Date().toISOString().split('T')[0])
-  const [proveedorEntrega, setProveedorEntrega] = useState('')
 
   const { toasts, toast } = useToast()
 
@@ -100,64 +101,110 @@ export default function Inventario({ session }) {
     setLoading(false)
   }
 
-  function descargarPlantilla(tipo) {
+  // ── Entrega desde app ──
+  const productosFiltradosEntrega = PRODUCTOS_CATALOGO.filter(p =>
+    p.nombre.toLowerCase().includes(busquedaEntrega.toLowerCase()) ||
+    p.sku.toLowerCase().includes(busquedaEntrega.toLowerCase())
+  ).slice(0, 8)
+
+  function agregarProductoEntrega(producto) {
+    if (itemsEntrega.find(i => i.sku === producto.sku)) return
+    setItemsEntrega(prev => [...prev, { ...producto, cantidad: 1 }])
+    setBusquedaEntrega('')
+  }
+
+  function actualizarItemEntrega(sku, cantidad) {
+    setItemsEntrega(prev => prev.map(i => i.sku === sku ? { ...i, cantidad } : i))
+  }
+
+  function quitarItemEntrega(sku) {
+    setItemsEntrega(prev => prev.filter(i => i.sku !== sku))
+  }
+
+  async function guardarEntrega(e) {
+    e.preventDefault()
+    setErrorEntrega('')
+    if (itemsEntrega.length === 0) { setErrorEntrega('Agrega al menos un producto.'); return }
+    if (itemsEntrega.some(i => !parseFloat(i.cantidad) || parseFloat(i.cantidad) <= 0)) {
+      setErrorEntrega('Todos los productos deben tener una cantidad mayor a 0.')
+      return
+    }
+    setGuardandoEntrega(true)
+
+    let actualizados = 0; let insertados = 0; let errores = 0
+
+    for (const item of itemsEntrega) {
+      const cantidad = parseFloat(item.cantidad) || 0
+      const { data: inv } = await supabase.from('inventario').select('id, stock_actual')
+        .eq('estacion_id', perfil.estacion_id).ilike('producto', item.nombre).single()
+
+      if (inv) {
+        const nuevoStock = parseFloat(inv.stock_actual) + cantidad
+        const { error } = await supabase.from('inventario').update({
+          stock_actual: nuevoStock,
+          updated_at: new Date().toISOString(),
+        }).eq('id', inv.id)
+        if (error) errores++; else actualizados++
+      } else {
+        const { error } = await supabase.from('inventario').insert({
+          estacion_id: perfil.estacion_id,
+          producto: item.nombre,
+          categoria: item.categoria,
+          stock_actual: cantidad,
+          stock_minimo: 0,
+          unidad: item.unidad,
+        })
+        if (error) errores++; else insertados++
+      }
+    }
+
+    toast(`✓ ${actualizados + insertados} productos actualizados${errores > 0 ? `, ${errores} errores` : ''}`, errores > 0 ? 'warning' : 'success')
+    setItemsEntrega([])
+    setProveedorEntrega('')
+    setNotasEntrega('')
+    setTab('actual')
+    await loadData()
+    setGuardandoEntrega(false)
+  }
+
+  // ── Carga inicial Excel ──
+  function descargarPlantillaInicial() {
     const filas = PRODUCTOS_CATALOGO.map(p => ({
-      SKU: p.sku,
-      Producto: p.nombre,
-      Categoría: p.categoria,
-      Cantidad: 0,
-      Unidad: p.unidad,
-      ...(tipo === 'inicial' ? { 'Stock mínimo': 2 } : {}),
+      SKU: p.sku, Producto: p.nombre, Categoría: p.categoria,
+      'Stock actual': 0, 'Stock mínimo': 2, Unidad: p.unidad,
     }))
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.json_to_sheet(filas)
-    ws['!cols'] = [{ wch: 14 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 14 }]
-    XLSX.utils.book_append_sheet(wb, ws, tipo === 'inicial' ? 'Inventario inicial' : 'Entrega')
-    XLSX.writeFile(wb, tipo === 'inicial' ? 'plantilla_inventario_inicial.xlsx' : 'plantilla_entrega_lubricantes.xlsx')
+    ws['!cols'] = [{ wch: 14 }, { wch: 40 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventario inicial')
+    XLSX.writeFile(wb, 'plantilla_inventario_inicial.xlsx')
     toast('Plantilla descargada', 'info')
   }
 
-  function procesarArchivo(e, tipo) {
+  function procesarArchivoInicial(e) {
     const file = e.target.files[0]
     if (!file) return
-    if (tipo === 'inicial') { setArchivoInicial(file); setErrorInicial(''); setPreviaInicial([]) }
-    else { setArchivoEntrega(file); setErrorEntrega(''); setPreviaEntrega([]) }
-
+    setArchivoInicial(file); setErrorInicial(''); setPreviaInicial([])
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
         const wb = XLSX.read(ev.target.result, { type: 'binary' })
         const ws = wb.Sheets[wb.SheetNames[0]]
         const datos = XLSX.utils.sheet_to_json(ws)
-        if (datos.length === 0) {
-          if (tipo === 'inicial') setErrorInicial('El archivo está vacío.')
-          else setErrorEntrega('El archivo está vacío.')
-          return
-        }
+        if (datos.length === 0) { setErrorInicial('El archivo está vacío.'); return }
         const filas = datos.map(row => {
           const producto = row['Producto'] || row['producto'] || ''
           const sku = row['SKU'] || row['sku'] || ''
-          const categoria = row['Categoría'] || row['Categoria'] || row['categoria'] || 'General'
-          const cantidad = parseFloat(row['Cantidad'] || row['cantidad'] || row['Stock actual'] || 0)
+          const categoria = row['Categoría'] || row['Categoria'] || 'General'
+          const cantidad = parseFloat(row['Stock actual'] || row['Cantidad'] || 0)
           const stockMinimo = parseFloat(row['Stock mínimo'] || row['Stock minimo'] || 0)
           const unidad = row['Unidad'] || row['unidad'] || 'Unidad'
-          if (!producto || cantidad === 0) return null
+          if (!producto) return null
           return { sku, producto, categoria, cantidad, stock_minimo: stockMinimo, unidad }
         }).filter(Boolean)
-
-        if (filas.length === 0) {
-          const msg = 'No se encontraron productos con cantidad mayor a 0.'
-          if (tipo === 'inicial') setErrorInicial(msg)
-          else setErrorEntrega(msg)
-          return
-        }
-        if (tipo === 'inicial') setPreviaInicial(filas)
-        else setPreviaEntrega(filas)
-      } catch (err) {
-        const msg = `Error al leer el archivo: ${err.message}`
-        if (tipo === 'inicial') setErrorInicial(msg)
-        else setErrorEntrega(msg)
-      }
+        if (filas.length === 0) { setErrorInicial('No se encontraron productos válidos.'); return }
+        setPreviaInicial(filas)
+      } catch (err) { setErrorInicial(`Error: ${err.message}`) }
     }
     reader.readAsBinaryString(file)
   }
@@ -170,24 +217,18 @@ export default function Inventario({ session }) {
     for (const item of previaInicial) {
       const { data: existe } = await supabase.from('inventario').select('id')
         .eq('estacion_id', perfil.estacion_id).ilike('producto', item.producto).single()
-
       if (existe) {
         const { error } = await supabase.from('inventario').update({
-          stock_actual: item.cantidad,
-          stock_minimo: item.stock_minimo || 0,
-          categoria: item.categoria,
-          unidad: item.unidad,
+          stock_actual: item.cantidad, stock_minimo: item.stock_minimo || 0,
+          categoria: item.categoria, unidad: item.unidad,
           updated_at: new Date().toISOString(),
         }).eq('id', existe.id)
         if (error) errores++; else actualizados++
       } else {
         const { error } = await supabase.from('inventario').insert({
-          estacion_id: perfil.estacion_id,
-          producto: item.producto,
-          categoria: item.categoria,
-          stock_actual: item.cantidad,
-          stock_minimo: item.stock_minimo || 0,
-          unidad: item.unidad,
+          estacion_id: perfil.estacion_id, producto: item.producto,
+          categoria: item.categoria, stock_actual: item.cantidad,
+          stock_minimo: item.stock_minimo || 0, unidad: item.unidad,
         })
         if (error) errores++; else insertados++
       }
@@ -197,44 +238,6 @@ export default function Inventario({ session }) {
     setPreviaInicial([]); setArchivoInicial(null)
     setTab('actual'); await loadData()
     setCargandoInicial(false)
-  }
-
-  async function guardarEntrega() {
-    if (previaEntrega.length === 0) return
-    setCargandoEntrega(true)
-    let actualizados = 0; let noEncontrados = 0; let errores = 0
-
-    for (const item of previaEntrega) {
-      const { data: inv } = await supabase.from('inventario').select('id, stock_actual')
-        .eq('estacion_id', perfil.estacion_id).ilike('producto', item.producto).single()
-
-      if (inv) {
-        const nuevoStock = parseFloat(inv.stock_actual) + item.cantidad
-        const { error } = await supabase.from('inventario').update({
-          stock_actual: nuevoStock,
-          updated_at: new Date().toISOString(),
-        }).eq('id', inv.id)
-        if (error) errores++; else actualizados++
-      } else {
-        // Si no existe el producto, lo crea
-        const { error } = await supabase.from('inventario').insert({
-          estacion_id: perfil.estacion_id,
-          producto: item.producto,
-          categoria: item.categoria,
-          stock_actual: item.cantidad,
-          stock_minimo: 0,
-          unidad: item.unidad,
-        })
-        if (error) errores++; else { actualizados++; noEncontrados++ }
-      }
-    }
-
-    const msg = `✓ ${actualizados} productos actualizados${noEncontrados > 0 ? ` (${noEncontrados} nuevos)` : ''}${errores > 0 ? `, ${errores} errores` : ''}`
-    toast(msg, errores > 0 ? 'warning' : 'success')
-    setPreviaEntrega([]); setArchivoEntrega(null)
-    setProveedorEntrega('')
-    setTab('actual'); await loadData()
-    setCargandoEntrega(false)
   }
 
   async function actualizarStock(id, campo, valor) {
@@ -265,157 +268,7 @@ export default function Inventario({ session }) {
     return matchBusqueda && matchCat
   })
   const bajoStock = inventario.filter(i => parseFloat(i.stock_actual) <= parseFloat(i.stock_minimo))
-
-  function SeccionCarga({ tipo }) {
-    const esEntrega = tipo === 'entrega'
-    const archivo = esEntrega ? archivoEntrega : archivoInicial
-    const previa = esEntrega ? previaEntrega : previaInicial
-    const cargando = esEntrega ? cargandoEntrega : cargandoInicial
-    const error = esEntrega ? errorEntrega : errorInicial
-
-    return (
-      <div className="space-y-4">
-        {/* Paso 1 */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">1</div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-gray-800 mb-1">Descarga la plantilla Excel</h3>
-              <p className="text-xs text-gray-500 mb-3">
-                {esEntrega
-                  ? 'La plantilla incluye los 51 productos. Ingresa solo la cantidad recibida en esta entrega.'
-                  : 'La plantilla incluye los 51 productos prellenados. Ingresa el stock actual y mínimo de cada uno.'}
-              </p>
-              <button onClick={() => descargarPlantilla(tipo)}
-                className="flex items-center gap-2 text-sm px-4 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Descargar plantilla
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Paso 2 — solo entrega: proveedor y fecha */}
-        {esEntrega && (
-          <div className="bg-white rounded-xl border border-gray-100 p-5">
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">2</div>
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-gray-800 mb-3">Datos de la entrega</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-1">Proveedor</label>
-                    <input value={proveedorEntrega} onChange={e => setProveedorEntrega(e.target.value)}
-                      placeholder="TGSA Guatemala"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-1">Fecha de entrega</label>
-                    <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Paso 3 — subir archivo */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">{esEntrega ? 3 : 2}</div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-gray-800 mb-1">Sube el archivo completado</h3>
-              <p className="text-xs text-gray-500 mb-3">
-                {esEntrega
-                  ? 'Las cantidades se sumarán al stock existente de cada producto.'
-                  : 'Si un producto ya existe, se actualizará su stock. Si no existe, se creará.'}
-              </p>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-300 transition-colors">
-                <input type="file" accept=".xlsx,.xls,.csv" id={`upload-${tipo}`}
-                  onChange={e => procesarArchivo(e, tipo)} className="hidden" />
-                <label htmlFor={`upload-${tipo}`} className="cursor-pointer">
-                  {archivo ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-sm text-green-700 font-medium">{archivo.name}</span>
-                      <button type="button" onClick={() => {
-                        if (tipo === 'inicial') { setArchivoInicial(null); setPreviaInicial([]) }
-                        else { setArchivoEntrega(null); setPreviaEntrega([]) }
-                      }} className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
-                    </div>
-                  ) : (
-                    <>
-                      <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-8m0 0l-3 3m3-3l3 3M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <p className="text-sm text-gray-500 font-medium">Haz clic para subir el Excel</p>
-                      <p className="text-xs text-gray-400 mt-1">.xlsx, .xls o .csv</p>
-                    </>
-                  )}
-                </label>
-              </div>
-              {error && <div className="mt-3 bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-xs text-red-700">{error}</div>}
-            </div>
-          </div>
-        </div>
-
-        {/* Vista previa */}
-        {previa.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-100 p-5">
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">{esEntrega ? 4 : 3}</div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-800">Vista previa — {previa.length} productos</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {esEntrega ? 'Estas cantidades se sumarán al stock actual' : 'Verifica los datos antes de guardar'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={esEntrega ? guardarEntrega : guardarCargaInicial}
-                    disabled={cargando}
-                    className="flex items-center gap-2 text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                    {cargando && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                    {cargando ? 'Guardando...' : esEntrega ? `Registrar entrega (${previa.length} productos)` : `Guardar inventario (${previa.length} productos)`}
-                  </button>
-                </div>
-                <div className="border border-gray-100 rounded-xl overflow-hidden max-h-80 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-gray-50">
-                      <tr className="border-b border-gray-100">
-                        <th className="px-4 py-2 text-left text-xs text-gray-400 font-normal">Producto</th>
-                        <th className="px-3 py-2 text-left text-xs text-gray-400 font-normal">Categoría</th>
-                        <th className="px-3 py-2 text-center text-xs text-gray-400 font-normal">{esEntrega ? 'Cantidad recibida' : 'Stock actual'}</th>
-                        {!esEntrega && <th className="px-3 py-2 text-center text-xs text-gray-400 font-normal">Stock mínimo</th>}
-                        <th className="px-4 py-2 text-left text-xs text-gray-400 font-normal">Unidad</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previa.map((item, i) => (
-                        <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                          <td className="px-4 py-2.5 text-gray-800 text-xs font-medium">{item.producto}</td>
-                          <td className="px-3 py-2.5 text-gray-500 text-xs">{item.categoria}</td>
-                          <td className="px-3 py-2.5 text-center text-xs text-gray-700 font-medium">{item.cantidad}</td>
-                          {!esEntrega && <td className="px-3 py-2.5 text-center text-xs text-gray-700">{item.stock_minimo}</td>}
-                          <td className="px-4 py-2.5 text-gray-500 text-xs">{item.unidad}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
+  const totalItems = inventario.length
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
@@ -424,7 +277,7 @@ export default function Inventario({ session }) {
         <div className="flex items-start justify-between mb-5">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Inventario de lubricantes</h1>
-            <p className="text-sm text-gray-400">{estacion?.nombre}</p>
+            <p className="text-sm text-gray-400">{estacion?.nombre} · {totalItems} productos</p>
           </div>
           {bajoStock.length > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700 font-medium">
@@ -437,7 +290,7 @@ export default function Inventario({ session }) {
           {[
             ['actual', 'Stock actual'],
             ['entrega', 'Registrar entrega'],
-            ['inicial', 'Carga inicial'],
+            ['inicial', 'Carga inicial (Excel)'],
           ].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm border-b-2 transition-colors whitespace-nowrap ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
@@ -446,14 +299,17 @@ export default function Inventario({ session }) {
           ))}
         </div>
 
+        {/* ── Tab: Stock actual ── */}
         {tab === 'actual' && (
           <>
             {inventario.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-100 p-10 text-center">
                 <div className="text-gray-400 text-sm mb-3">No hay productos en el inventario aún</div>
-                <button onClick={() => setTab('inicial')} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                  Hacer carga inicial →
-                </button>
+                <div className="flex gap-3 justify-center">
+                  <button onClick={() => setTab('entrega')} className="text-sm text-blue-600 hover:text-blue-800 font-medium">Registrar primera entrega →</button>
+                  <span className="text-gray-300">|</span>
+                  <button onClick={() => setTab('inicial')} className="text-sm text-blue-600 hover:text-blue-800 font-medium">Carga inicial desde Excel →</button>
+                </div>
               </div>
             ) : (
               <>
@@ -521,8 +377,215 @@ export default function Inventario({ session }) {
           </>
         )}
 
-        {tab === 'entrega' && <SeccionCarga tipo="entrega" />}
-        {tab === 'inicial' && <SeccionCarga tipo="inicial" />}
+        {/* ── Tab: Registrar entrega ── */}
+        {tab === 'entrega' && (
+          <form onSubmit={guardarEntrega} className="space-y-4">
+
+            {/* Info entrega */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <h2 className="text-sm font-medium text-gray-700 mb-3">Datos de la entrega</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Proveedor</label>
+                  <input value={proveedorEntrega} onChange={e => setProveedorEntrega(e.target.value)}
+                    placeholder="TGSA Guatemala"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Fecha de entrega</label>
+                  <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 block mb-1">Notas (opcional)</label>
+                  <input value={notasEntrega} onChange={e => setNotasEntrega(e.target.value)}
+                    placeholder="No. remisión, conductor..."
+                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+              </div>
+            </div>
+
+            {/* Buscador productos */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <h2 className="text-sm font-medium text-gray-700 mb-3">Productos recibidos</h2>
+              <div className="relative mb-3">
+                <input type="text" value={busquedaEntrega} onChange={e => setBusquedaEntrega(e.target.value)}
+                  placeholder="Buscar producto por nombre o SKU..."
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 pr-8" />
+                {busquedaEntrega && (
+                  <button type="button" onClick={() => setBusquedaEntrega('')}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 text-xs">✕</button>
+                )}
+              </div>
+
+              {busquedaEntrega && (
+                <div className="border border-gray-100 rounded-lg overflow-hidden mb-3">
+                  {productosFiltradosEntrega.length === 0 && (
+                    <div className="px-4 py-3 text-xs text-gray-400 text-center">Sin resultados</div>
+                  )}
+                  {productosFiltradosEntrega.map(p => (
+                    <button key={p.sku} type="button" onClick={() => agregarProductoEntrega(p)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
+                      <div className="text-left">
+                        <div className="text-xs font-medium text-gray-800">{p.nombre}</div>
+                        <div className="text-xs text-gray-400">{p.sku} · {p.categoria}</div>
+                      </div>
+                      <span className="text-xs text-blue-600 ml-4">{p.unidad}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {itemsEntrega.length > 0 && (
+                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-12 bg-gray-50 px-4 py-2 border-b border-gray-100">
+                    <div className="col-span-7 text-xs text-gray-400 font-medium">Producto</div>
+                    <div className="col-span-3 text-xs text-gray-400 font-medium text-center">Cantidad recibida</div>
+                    <div className="col-span-2 text-xs text-gray-400 font-medium text-center">Unidad</div>
+                  </div>
+                  {itemsEntrega.map(item => (
+                    <div key={item.sku} className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b border-gray-50 last:border-0">
+                      <div className="col-span-7">
+                        <div className="text-xs font-medium text-gray-800">{item.nombre}</div>
+                        <button type="button" onClick={() => quitarItemEntrega(item.sku)}
+                          className="text-xs text-red-400 hover:text-red-600 mt-0.5">Quitar</button>
+                      </div>
+                      <div className="col-span-3">
+                        <input type="number" min="0" step="0.01" value={item.cantidad}
+                          onChange={e => actualizarItemEntrega(item.sku, e.target.value)}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400" />
+                      </div>
+                      <div className="col-span-2 text-xs text-gray-500 text-center">{item.unidad}</div>
+                    </div>
+                  ))}
+                  <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100">
+                    <span className="text-xs text-gray-600 font-medium">{itemsEntrega.length} producto{itemsEntrega.length > 1 ? 's' : ''} seleccionado{itemsEntrega.length > 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+              )}
+
+              {itemsEntrega.length === 0 && !busquedaEntrega && (
+                <div className="text-center py-6 text-xs text-gray-400">Busca un producto para agregarlo a la entrega</div>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3">
+              <p className="text-xs text-blue-700">Las cantidades ingresadas se sumarán al stock actual de cada producto automáticamente.</p>
+            </div>
+
+            {errorEntrega && (
+              <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-3 text-xs text-red-700">{errorEntrega}</div>
+            )}
+
+            <div className="flex justify-end">
+              <button type="submit" disabled={guardandoEntrega || itemsEntrega.length === 0}
+                className="bg-blue-600 text-white text-sm px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                {guardandoEntrega && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                {guardandoEntrega ? 'Guardando...' : `Registrar entrega (${itemsEntrega.length} productos)`}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ── Tab: Carga inicial Excel ── */}
+        {tab === 'inicial' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">1</div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-800 mb-1">Descarga la plantilla Excel</h3>
+                  <p className="text-xs text-gray-500 mb-3">51 productos prellenados. Solo ingresa el stock actual y mínimo de cada uno.</p>
+                  <button onClick={descargarPlantillaInicial}
+                    className="flex items-center gap-2 text-sm px-4 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Descargar plantilla
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">2</div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-800 mb-1">Sube el archivo completado</h3>
+                  <p className="text-xs text-gray-500 mb-3">Si un producto ya existe se actualizará, si no existe se creará.</p>
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-blue-300 transition-colors">
+                    <input type="file" accept=".xlsx,.xls,.csv" id="upload-inicial"
+                      onChange={procesarArchivoInicial} className="hidden" />
+                    <label htmlFor="upload-inicial" className="cursor-pointer">
+                      {archivoInicial ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm text-green-700 font-medium">{archivoInicial.name}</span>
+                          <button type="button" onClick={() => { setArchivoInicial(null); setPreviaInicial([]) }}
+                            className="text-xs text-red-400 hover:text-red-600 ml-1">✕</button>
+                        </div>
+                      ) : (
+                        <>
+                          <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16v-8m0 0l-3 3m3-3l3 3M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <p className="text-sm text-gray-500 font-medium">Haz clic para subir el Excel</p>
+                          <p className="text-xs text-gray-400 mt-1">.xlsx, .xls o .csv</p>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                  {errorInicial && <div className="mt-3 bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-xs text-red-700">{errorInicial}</div>}
+                </div>
+              </div>
+            </div>
+
+            {previaInicial.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-medium text-sm flex items-center justify-center flex-shrink-0">3</div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-800">Vista previa — {previaInicial.length} productos</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Verifica los datos antes de guardar</p>
+                      </div>
+                      <button onClick={guardarCargaInicial} disabled={cargandoInicial}
+                        className="flex items-center gap-2 text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                        {cargandoInicial && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                        {cargandoInicial ? 'Guardando...' : `Guardar ${previaInicial.length} productos`}
+                      </button>
+                    </div>
+                    <div className="border border-gray-100 rounded-xl overflow-hidden max-h-80 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-gray-50">
+                          <tr className="border-b border-gray-100">
+                            <th className="px-4 py-2 text-left text-xs text-gray-400 font-normal">Producto</th>
+                            <th className="px-3 py-2 text-center text-xs text-gray-400 font-normal">Stock actual</th>
+                            <th className="px-3 py-2 text-center text-xs text-gray-400 font-normal">Stock mínimo</th>
+                            <th className="px-4 py-2 text-left text-xs text-gray-400 font-normal">Unidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previaInicial.map((item, i) => (
+                            <tr key={i} className="border-b border-gray-50">
+                              <td className="px-4 py-2.5 text-gray-800 text-xs font-medium">{item.producto}</td>
+                              <td className="px-3 py-2.5 text-center text-xs text-gray-700">{item.cantidad}</td>
+                              <td className="px-3 py-2.5 text-center text-xs text-gray-700">{item.stock_minimo}</td>
+                              <td className="px-4 py-2.5 text-gray-500 text-xs">{item.unidad}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Layout>
   )
