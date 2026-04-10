@@ -53,12 +53,8 @@ export default function Layout({ children, perfil, estacion }) {
 
         <div className="px-4 py-5 border-b border-gray-100 flex flex-col items-center">
           <button onClick={() => router.push('/dashboard')} className="w-full">
-            <img
-              src="/logo.svg"
-              alt="GasOps"
-              className="w-full object-contain mb-1"
-              style={{ height: '80px', filter: darkMode ? 'brightness(10)' : 'none', transition: 'filter 0.2s' }}
-            />
+            <img src="/logo.svg" alt="GasOps" className="w-full object-contain mb-1"
+              style={{ height: '80px', filter: darkMode ? 'brightness(10)' : 'none', transition: 'filter 0.2s' }} />
           </button>
           <div className="text-xs text-gray-400 text-center truncate w-full mt-1">
             {esAdmin ? 'Administrador' : (estacion?.nombre || '...')}
@@ -93,6 +89,15 @@ export default function Layout({ children, perfil, estacion }) {
                 </svg>
                 Panel general
               </button>
+              <button onClick={() => router.push('/reportes')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  router.pathname === '/reportes' ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                }`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Reportes
+              </button>
             </>
           )}
         </nav>
@@ -118,11 +123,8 @@ export default function Layout({ children, perfil, estacion }) {
         {/* Topbar móvil */}
         <div className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
           <button onClick={() => router.push('/dashboard')}>
-            <img
-              src="/logo.svg"
-              alt="GasOps"
-              style={{ height: '32px', filter: darkMode ? 'brightness(10)' : 'none', transition: 'filter 0.2s' }}
-            />
+            <img src="/logo.svg" alt="GasOps"
+              style={{ height: '32px', filter: darkMode ? 'brightness(10)' : 'none', transition: 'filter 0.2s' }} />
           </button>
           <div className="flex items-center gap-2">
             <button onClick={toggleDark} className="p-2 rounded-lg hover:bg-gray-50">
@@ -168,11 +170,27 @@ export default function Layout({ children, perfil, estacion }) {
                 </button>
               )
             })}
+            {esAdmin && (
+              <>
+                <button onClick={() => { router.push('/admin'); setMenuAbierto(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${router.pathname==='/admin'?'bg-purple-50 text-purple-700 font-medium':'text-gray-600 hover:bg-gray-50'}`}>
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+                  </svg>
+                  Panel general
+                </button>
+                <button onClick={() => { router.push('/reportes'); setMenuAbierto(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${router.pathname==='/reportes'?'bg-purple-50 text-purple-700 font-medium':'text-gray-600 hover:bg-gray-50'}`}>
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Reportes
+                </button>
+              </>
+            )}
             <div className="border-t border-gray-100 mt-2 pt-2 px-4">
               <div className="text-xs text-gray-400 mb-1">{perfil?.nombre_completo}</div>
-              <button onClick={logout} className="text-xs text-red-400 hover:text-red-600">
-                Cerrar sesión
-              </button>
+              <button onClick={logout} className="text-xs text-red-400 hover:text-red-600">Cerrar sesión</button>
             </div>
           </div>
         )}
