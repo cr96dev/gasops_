@@ -8,10 +8,10 @@ import { SkeletonTable } from '../components/Skeleton'
 const estadoColor = { pendiente: 'text-amber-600 bg-amber-50', confirmada: 'text-green-700 bg-green-50', cancelada: 'text-red-600 bg-red-50' }
 
 const combustibles = [
-  { key: 'regular',    label: 'Regular',  tanque: 'regular', color: '#CA8A04' },
-  { key: 'premium',    label: 'Super',    tanque: 'super',   color: '#16A34A' },
-  { key: 'diesel',     label: 'Diesel',   tanque: 'diesel',  color: '#1C1917' },
-  { key: 'diesel_plus',label: 'V-Power',  tanque: 'vpower',  color: '#DC2626' },
+  { key: 'regular',     label: 'Regular', color: '#CA8A04', tanque: 'regular'  },
+  { key: 'premium',     label: 'Super',   color: '#16A34A', tanque: 'super'    },
+  { key: 'diesel',      label: 'Diesel',  color: '#1C1917', tanque: 'diesel'   },
+  { key: 'diesel_plus', label: 'V-Power', color: '#DC2626', tanque: 'vpower'   },
 ]
 
 export default function Entregas({ session }) {
@@ -22,8 +22,10 @@ export default function Entregas({ session }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const [detalleAbierto, setDetalleAbierto] = useState(null)
   const { toasts, toast } = useToast()
-  const [form, setForm] = useState({
+
+  const formVacio = {
     proveedor: '',
     fecha_entrega: new Date().toISOString().split('T')[0],
     estado: 'confirmada',
@@ -32,7 +34,8 @@ export default function Entregas({ session }) {
     premium_galones: '', premium_precio: '',
     diesel_galones: '', diesel_precio: '',
     diesel_plus_galones: '', diesel_plus_precio: '',
-  })
+  }
+  const [form, setForm] = useState(formVacio)
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
@@ -52,7 +55,11 @@ export default function Entregas({ session }) {
     setLoading(false)
   }
 
-  function totalEntrega() {
+  function totalGalones() {
+    return combustibles.reduce((s, c) => s + (parseFloat(form[`${c.key}_galones`]) || 0), 0)
+  }
+
+  function totalCosto() {
     return combustibles.reduce((s, c) => {
       const gal = parseFloat(form[`${c.key}_galones`]) || 0
       const precio = parseFloat(form[`${c.key}_precio`]) || 0
@@ -60,46 +67,63 @@ export default function Entregas({ session }) {
     }, 0)
   }
 
-  function totalGalones() {
-    return combustibles.reduce((s, c) => s + (parseFloat(form[`${c.key}_galones`]) || 0), 0)
-  }
-
   async function guardar(e) {
     e.preventDefault()
+    if (totalGalones() === 0) {
+      toast('Ingresa al menos un combustible', 'warning')
+      return
+    }
     setGuardando(true)
 
-    const combustiblesConDatos = combustibles.filter(c => parseFloat(form[`${c.key}_galones`]) > 0)
+    const regular_galones = parseFloat(form.regular_galones) || 0
+    const regular_precio = parseFloat(form.regular_precio) || 0
+    const premium_galones = parseFloat(form.premium_galones) || 0
+    const premium_precio = parseFloat(form.premium_precio) || 0
+    const diesel_galones = parseFloat(form.diesel_galones) || 0
+    const diesel_precio = parseFloat(form.diesel_precio) || 0
+    const diesel_plus_galones = parseFloat(form.diesel_plus_galones) || 0
+    const diesel_plus_precio = parseFloat(form.diesel_plus_precio) || 0
 
-    if (combustiblesConDatos.length === 0) {
-      toast('Ingresa al menos un combustible', 'warning')
+    const total_galones = regular_galones + premium_galones + diesel_galones + diesel_plus_galones
+    const costo_total_entrega =
+      regular_galones * regular_precio +
+      premium_galones * premium_precio +
+      diesel_galones * diesel_precio +
+      diesel_plus_galones * diesel_plus_precio
+
+    // Insertar un solo registro con todos los combustibles
+    const { error } = await supabase.from('entregas').insert({
+      estacion_id: perfil.estacion_id,
+      proveedor: form.proveedor,
+      fecha_entrega: form.fecha_entrega,
+      estado: form.estado,
+      notas: form.notas,
+      // Columnas legacy requeridas — usamos el primer combustible con datos
+      tipo_combustible: combustibles.find(c => parseFloat(form[`${c.key}_galones`]) > 0)?.key || 'regular',
+      volumen_litros: total_galones,
+      precio_por_litro: 0,
+      costo_total: costo_total_entrega,
+      // Columnas nuevas por combustible
+      regular_galones, regular_precio,
+      premium_galones, premium_precio,
+      diesel_galones, diesel_precio,
+      diesel_plus_galones, diesel_plus_precio,
+      total_galones,
+      costo_total_entrega,
+      creado_por: session.user.id,
+    })
+
+    if (error) {
+      toast('Error al guardar la entrega', 'error')
       setGuardando(false)
       return
     }
 
-    // Insertar un registro por cada combustible con datos
-    for (const c of combustiblesConDatos) {
-      const galones = parseFloat(form[`${c.key}_galones`])
-      const precio = parseFloat(form[`${c.key}_precio`]) || 0
+    // Actualizar tanques
+    for (const c of combustibles) {
+      const galones = parseFloat(form[`${c.key}_galones`]) || 0
+      if (galones === 0) continue
 
-      const { error } = await supabase.from('entregas').insert({
-        estacion_id: perfil.estacion_id,
-        proveedor: form.proveedor,
-        tipo_combustible: c.key,
-        fecha_entrega: form.fecha_entrega,
-        volumen_litros: galones,
-        precio_por_litro: precio,
-        costo_total: galones * precio,
-        estado: form.estado,
-        notas: form.notas,
-        creado_por: session.user.id,
-      })
-
-      if (error) {
-        toast(`Error al guardar ${c.label}`, 'error')
-        continue
-      }
-
-      // Actualizar tanque
       const { data: tanqueActual } = await supabase.from('tanques')
         .select('nivel_galones, capacidad_galones')
         .eq('estacion_id', perfil.estacion_id)
@@ -127,15 +151,8 @@ export default function Entregas({ session }) {
     }
 
     setShowForm(false)
-    setForm({
-      proveedor: '', fecha_entrega: new Date().toISOString().split('T')[0],
-      estado: 'confirmada', notas: '',
-      regular_galones: '', regular_precio: '',
-      premium_galones: '', premium_precio: '',
-      diesel_galones: '', diesel_precio: '',
-      diesel_plus_galones: '', diesel_plus_precio: '',
-    })
-    toast(`✓ Entrega registrada — ${combustiblesConDatos.length} combustible${combustiblesConDatos.length > 1 ? 's' : ''} actualizado${combustiblesConDatos.length > 1 ? 's' : ''}`, 'success')
+    setForm(formVacio)
+    toast('✓ Entrega registrada y tanques actualizados', 'success')
     await loadData()
     setGuardando(false)
   }
@@ -154,9 +171,6 @@ export default function Entregas({ session }) {
       </div>
     </Layout>
   )
-
-  const tiposLabel = { regular: 'Regular', premium: 'Super', diesel: 'Diesel', diesel_plus: 'V-Power' }
-  const tipoColor = { regular: '#CA8A04', premium: '#16A34A', diesel: '#1C1917', diesel_plus: '#DC2626' }
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
@@ -178,7 +192,7 @@ export default function Entregas({ session }) {
             <h2 className="text-sm font-medium text-gray-700 mb-4">Nueva entrega</h2>
 
             {/* Info general */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-3 mb-5">
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Proveedor</label>
                 <input value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))} required
@@ -207,47 +221,55 @@ export default function Entregas({ session }) {
               </div>
             </div>
 
-            {/* Tabla de combustibles */}
+            {/* Tabla combustibles */}
             <div className="border border-gray-100 rounded-xl overflow-hidden mb-4">
-              <div className="grid grid-cols-3 gap-0 bg-gray-50 px-4 py-2 border-b border-gray-100">
+              <div className="grid grid-cols-4 bg-gray-50 px-4 py-2.5 border-b border-gray-100">
                 <div className="text-xs text-gray-400 font-medium">Combustible</div>
                 <div className="text-xs text-gray-400 font-medium text-center">Galones recibidos</div>
-                <div className="text-xs text-gray-400 font-medium text-center">Precio por galón (Q)</div>
+                <div className="text-xs text-gray-400 font-medium text-center">Precio / galón (Q)</div>
+                <div className="text-xs text-gray-400 font-medium text-right">Subtotal</div>
               </div>
-              {combustibles.map((c, i) => (
-                <div key={c.key} className={`grid grid-cols-3 gap-3 px-4 py-3 items-center ${i < combustibles.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }}></div>
-                    <span className="text-sm font-medium text-gray-700">{c.label}</span>
+              {combustibles.map((c, i) => {
+                const gal = parseFloat(form[`${c.key}_galones`]) || 0
+                const precio = parseFloat(form[`${c.key}_precio`]) || 0
+                const subtotal = gal * precio
+                return (
+                  <div key={c.key} className={`grid grid-cols-4 gap-3 px-4 py-3 items-center ${i < combustibles.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }}></div>
+                      <span className="text-sm font-medium text-gray-700">{c.label}</span>
+                    </div>
+                    <input type="number" min="0" step="0.01"
+                      value={form[`${c.key}_galones`]}
+                      onChange={e => setForm(f => ({ ...f, [`${c.key}_galones`]: e.target.value }))}
+                      placeholder="0"
+                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400 w-full" />
+                    <input type="number" min="0" step="0.0001"
+                      value={form[`${c.key}_precio`]}
+                      onChange={e => setForm(f => ({ ...f, [`${c.key}_precio`]: e.target.value }))}
+                      placeholder="0.00"
+                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400 w-full" />
+                    <div className="text-sm text-right font-medium text-gray-700">
+                      {subtotal > 0 ? `Q${subtotal.toLocaleString('es-GT', { maximumFractionDigits: 2 })}` : '—'}
+                    </div>
                   </div>
-                  <input type="number" min="0" step="0.01"
-                    value={form[`${c.key}_galones`]}
-                    onChange={e => setForm(f => ({ ...f, [`${c.key}_galones`]: e.target.value }))}
-                    placeholder="0"
-                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400 w-full" />
-                  <input type="number" min="0" step="0.0001"
-                    value={form[`${c.key}_precio`]}
-                    onChange={e => setForm(f => ({ ...f, [`${c.key}_precio`]: e.target.value }))}
-                    placeholder="0.00"
-                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400 w-full" />
+                )
+              })}
+              {/* Totales */}
+              <div className="grid grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-t border-gray-100">
+                <div className="text-xs font-medium text-gray-600">Total</div>
+                <div className="text-sm font-medium text-gray-800 text-center">
+                  {totalGalones() > 0 ? `${totalGalones().toLocaleString('es-GT', { maximumFractionDigits: 1 })} gal` : '—'}
                 </div>
-              ))}
+                <div></div>
+                <div className="text-sm font-medium text-gray-800 text-right">
+                  {totalCosto() > 0 ? `Q${totalCosto().toLocaleString('es-GT', { maximumFractionDigits: 2 })}` : '—'}
+                </div>
+              </div>
             </div>
 
-            {/* Resumen */}
-            {totalGalones() > 0 && (
-              <div className="bg-blue-50 rounded-lg px-4 py-3 mb-4 flex justify-between items-center">
-                <div className="text-xs text-blue-700">
-                  <span className="font-medium">{totalGalones().toLocaleString('es-GT', { maximumFractionDigits: 1 })} galones</span> en total
-                </div>
-                <div className="text-xs text-blue-700">
-                  Costo total: <span className="font-medium">Q{totalEntrega().toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-            )}
-
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowForm(false)}
+              <button type="button" onClick={() => { setShowForm(false); setForm(formVacio) }}
                 className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
               <button type="submit" disabled={guardando}
                 className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
@@ -265,10 +287,10 @@ export default function Entregas({ session }) {
               <tr className="border-b border-gray-100">
                 <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
                 <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Proveedor</th>
-                <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Combustible</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Galones</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Costo Q</th>
-                <th className="px-5 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
+                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total gal</th>
+                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Costo total</th>
+                <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
+                <th className="px-4 py-2.5 text-center text-xs text-gray-400 font-normal">Detalle</th>
               </tr>
             </thead>
             <tbody>
@@ -276,26 +298,57 @@ export default function Entregas({ session }) {
                 <tr><td colSpan={6} className="px-5 py-6 text-center text-xs text-gray-400">Sin entregas registradas aún</td></tr>
               )}
               {entregas.map(e => (
-                <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-5 py-3 text-gray-700">{e.fecha_entrega}</td>
-                  <td className="px-3 py-3 text-gray-700">{e.proveedor}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: tipoColor[e.tipo_combustible] }}></div>
-                      <span className="text-gray-600">{tiposLabel[e.tipo_combustible]}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-right text-gray-700">{parseFloat(e.volumen_litros).toLocaleString('es-GT')}</td>
-                  <td className="px-3 py-3 text-right font-medium text-gray-800">Q{parseFloat(e.costo_total || 0).toLocaleString('es-GT', { maximumFractionDigits: 0 })}</td>
-                  <td className="px-5 py-3 text-center">
-                    <select value={e.estado} onChange={ev => cambiarEstado(e.id, ev.target.value)}
-                      className={`text-xs px-2.5 py-0.5 rounded-full font-medium border-0 cursor-pointer focus:outline-none ${estadoColor[e.estado]}`}>
-                      <option value="pendiente">Pendiente</option>
-                      <option value="confirmada">Confirmada</option>
-                      <option value="cancelada">Cancelada</option>
-                    </select>
-                  </td>
-                </tr>
+                <>
+                  <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="px-5 py-3 text-gray-700">{e.fecha_entrega}</td>
+                    <td className="px-3 py-3 text-gray-700">{e.proveedor}</td>
+                    <td className="px-3 py-3 text-right text-gray-700">
+                      {parseFloat(e.total_galones || e.volumen_litros || 0).toLocaleString('es-GT', { maximumFractionDigits: 1 })} gal
+                    </td>
+                    <td className="px-3 py-3 text-right font-medium text-gray-800">
+                      Q{parseFloat(e.costo_total_entrega || e.costo_total || 0).toLocaleString('es-GT', { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <select value={e.estado} onChange={ev => cambiarEstado(e.id, ev.target.value)}
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-medium border-0 cursor-pointer focus:outline-none ${estadoColor[e.estado]}`}>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="confirmada">Confirmada</option>
+                        <option value="cancelada">Cancelada</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button onClick={() => setDetalleAbierto(detalleAbierto === e.id ? null : e.id)}
+                        className="text-xs text-blue-600 hover:text-blue-800">
+                        {detalleAbierto === e.id ? '▲ Cerrar' : '▼ Ver'}
+                      </button>
+                    </td>
+                  </tr>
+                  {detalleAbierto === e.id && (
+                    <tr key={`${e.id}-detalle`} className="border-b border-gray-100">
+                      <td colSpan={6} className="px-5 py-3 bg-gray-50">
+                        <div className="grid grid-cols-4 gap-3">
+                          {combustibles.map(c => {
+                            const gal = parseFloat(e[`${c.key}_galones`] || 0)
+                            const precio = parseFloat(e[`${c.key}_precio`] || 0)
+                            if (gal === 0) return null
+                            return (
+                              <div key={c.key} className="bg-white rounded-lg border border-gray-100 p-3">
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <div className="w-2 h-2 rounded-full" style={{ background: c.color }}></div>
+                                  <span className="text-xs font-medium text-gray-700">{c.label}</span>
+                                </div>
+                                <div className="text-sm font-medium text-gray-800">{gal.toLocaleString('es-GT')} gal</div>
+                                {precio > 0 && <div className="text-xs text-gray-400 mt-0.5">Q{precio.toFixed(4)}/gal</div>}
+                                {precio > 0 && <div className="text-xs text-gray-600 mt-0.5">Q{(gal * precio).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {e.notas && <div className="mt-2 text-xs text-gray-400">Notas: {e.notas}</div>}
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
