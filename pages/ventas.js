@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
+import { useToast, ToastContainer } from '../components/Toast'
 
 const combustibles = [
   { key: 'regular', label: 'Regular' },
@@ -51,9 +52,8 @@ export default function Ventas({ session }) {
   const [registroHoy, setRegistroHoy] = useState(null)
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
-  const [exito, setExito] = useState(false)
-  const [error, setError] = useState('')
   const [form, setForm] = useState(formInicial)
+  const { toasts, toast } = useToast()
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
@@ -66,21 +66,12 @@ export default function Ventas({ session }) {
     setEstacion(p?.estaciones)
     if (p?.estacion_id) {
       const today = new Date().toISOString().split('T')[0]
-
-      // Verificar si ya existe registro de hoy
-      const { data: hoy } = await supabase
-        .from('ventas').select('*')
-        .eq('estacion_id', p.estacion_id)
-        .eq('fecha', today)
-        .single()
+      const { data: hoy } = await supabase.from('ventas').select('*')
+        .eq('estacion_id', p.estacion_id).eq('fecha', today).single()
       setRegistroHoy(hoy || null)
-
-      // Historial
-      const { data: h } = await supabase
-        .from('ventas').select('*')
+      const { data: h } = await supabase.from('ventas').select('*')
         .eq('estacion_id', p.estacion_id)
-        .order('fecha', { ascending: false })
-        .limit(15)
+        .order('fecha', { ascending: false }).limit(15)
       setHistorial(h || [])
     }
     setLoading(false)
@@ -109,7 +100,6 @@ export default function Ventas({ session }) {
   async function guardar(e) {
     e.preventDefault()
     setGuardando(true)
-    setError('')
     const payload = {
       estacion_id: perfil.estacion_id,
       fecha: new Date().toISOString().split('T')[0],
@@ -125,16 +115,24 @@ export default function Ventas({ session }) {
       creado_por: session.user.id,
     }
     metodosPago.forEach(m => { payload[m.key] = parseFloat(form[m.key]) || 0 })
-    const { error: err } = await supabase.from('ventas').insert(payload)
-    if (err) setError('Error al guardar. Intenta de nuevo.')
-    else {
-      setExito(true)
+    const { error } = await supabase.from('ventas').insert(payload)
+    if (error) {
+      toast('Error al guardar. Intenta de nuevo.', 'error')
+    } else {
+      toast('✓ Ventas del día registradas correctamente', 'success')
       await loadData()
     }
     setGuardando(false)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Cargando...</div>
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <span className="text-sm text-gray-400">Cargando ventas...</span>
+      </div>
+    </div>
+  )
 
   const diff = diferencia()
   const totalI = totalIngresos()
@@ -143,28 +141,25 @@ export default function Ventas({ session }) {
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
+      <ToastContainer toasts={toasts} />
       <div className="p-6 max-w-3xl">
         <div className="mb-5">
           <h1 className="text-lg font-semibold text-gray-900">Registro de ventas</h1>
           <p className="text-sm text-gray-400">{estacion?.nombre} — {today}</p>
         </div>
 
-        {/* Ya existe registro de hoy — modo lectura */}
         {registroHoy ? (
           <div className="space-y-4">
             <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
-              <div className="text-green-600 mt-0.5">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
+              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               <div>
                 <div className="text-sm font-medium text-green-800">Registro del día enviado</div>
                 <div className="text-xs text-green-600 mt-0.5">Las ventas de hoy ya fueron registradas y no pueden modificarse. Si hay un error, comunícate con el administrador.</div>
               </div>
             </div>
 
-            {/* Resumen del registro enviado */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Combustible vendido hoy</h2>
               <div className="grid grid-cols-3 gap-2 mb-2">
@@ -182,10 +177,10 @@ export default function Ventas({ session }) {
               <div className="grid grid-cols-3 gap-2 pt-2 mt-1">
                 <div className="text-xs font-medium text-gray-600">Total</div>
                 <div className="text-sm font-medium text-gray-800 text-right">
-                  {(combustibles.reduce((s, c) => s + parseFloat(registroHoy[`${c.key}_litros`] || 0), 0)).toLocaleString('es-GT', { maximumFractionDigits: 1 })} gal
+                  {combustibles.reduce((s, c) => s + parseFloat(registroHoy[`${c.key}_litros`] || 0), 0).toLocaleString('es-GT', { maximumFractionDigits: 1 })} gal
                 </div>
                 <div className="text-sm font-medium text-gray-800 text-right">
-                  Q{(combustibles.reduce((s, c) => s + parseFloat(registroHoy[`${c.key}_ingresos`] || 0), 0)).toLocaleString('es-GT', { maximumFractionDigits: 2 })}
+                  Q{combustibles.reduce((s, c) => s + parseFloat(registroHoy[`${c.key}_ingresos`] || 0), 0).toLocaleString('es-GT', { maximumFractionDigits: 2 })}
                 </div>
               </div>
             </div>
@@ -205,11 +200,11 @@ export default function Ventas({ session }) {
               <div className="pt-2 mt-1 space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Total ingresos</span>
-                  <span className="font-medium text-gray-800">Q{(combustibles.reduce((s, c) => s + parseFloat(registroHoy[`${c.key}_ingresos`] || 0), 0)).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                  <span className="font-medium text-gray-800">Q{combustibles.reduce((s, c) => s + parseFloat(registroHoy[`${c.key}_ingresos`] || 0), 0).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Total cobros</span>
-                  <span className="font-medium text-gray-800">Q{(metodosPago.reduce((s, m) => s + parseFloat(registroHoy[m.key] || 0), 0)).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                  <span className="font-medium text-gray-800">Q{metodosPago.reduce((s, m) => s + parseFloat(registroHoy[m.key] || 0), 0).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
                 </div>
                 {(() => {
                   const totalIng = combustibles.reduce((s, c) => s + parseFloat(registroHoy[`${c.key}_ingresos`] || 0), 0)
@@ -233,15 +228,7 @@ export default function Ventas({ session }) {
             )}
           </div>
         ) : (
-          /* Formulario — solo si no hay registro de hoy */
           <form onSubmit={guardar} className="space-y-4">
-
-            {exito && (
-              <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-3 text-sm text-green-700">
-                ✓ Registro guardado correctamente
-              </div>
-            )}
-
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Combustible vendido</h2>
               <div className="grid grid-cols-3 gap-2 mb-2">
@@ -304,7 +291,7 @@ export default function Ventas({ session }) {
                   <div className="text-xs text-green-600 text-right">✓ Cuadra perfectamente</div>
                 )}
                 {Math.abs(diff) >= 0.01 && totalM > 0 && (
-                  <div className="text-xs text-red-500 text-right">Hay una diferencia de Q{Math.abs(diff).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</div>
+                  <div className="text-xs text-red-500 text-right">Diferencia de Q{Math.abs(diff).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</div>
                 )}
               </div>
             </div>
@@ -316,22 +303,20 @@ export default function Ventas({ session }) {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
             </div>
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
-
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
               <p className="text-xs text-amber-700">Una vez guardado el registro no podrá ser modificado. Verifica que los datos sean correctos antes de enviar.</p>
             </div>
 
             <div className="flex justify-end">
               <button type="submit" disabled={guardando}
-                className="bg-blue-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                className="bg-blue-600 text-white text-sm px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+                {guardando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                 {guardando ? 'Guardando...' : 'Guardar registro del día'}
               </button>
             </div>
           </form>
         )}
 
-        {/* Historial */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mt-6">
           <div className="px-5 py-3 border-b border-gray-100">
             <h2 className="text-sm font-medium text-gray-700">Historial reciente</h2>
@@ -351,7 +336,7 @@ export default function Ventas({ session }) {
               </thead>
               <tbody>
                 {historial.length === 0 && (
-                  <tr><td colSpan={7} className="px-5 py-4 text-xs text-gray-400 text-center">Sin registros aún</td></tr>
+                  <tr><td colSpan={7} className="px-5 py-6 text-center text-xs text-gray-400">Sin registros aún</td></tr>
                 )}
                 {historial.map(v => {
                   const total = v.regular_ingresos + v.premium_ingresos + v.diesel_ingresos + v.diesel_plus_ingresos
