@@ -51,11 +51,13 @@ export default function Layout({ children, perfil, estacion }) {
       <aside className="hidden md:flex w-52 bg-white border-r border-gray-100 flex-col flex-shrink-0">
 
         <div className="px-4 py-4 border-b border-gray-100 flex flex-col items-center">
-          <img
-            src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
-            alt="Hidrocom"
-            className="h-24 w-full object-contain mb-1"
-          />
+          <button onClick={() => router.push('/dashboard')} className="w-full">
+            <img
+              src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
+              alt="Hidrocom"
+              className="h-24 w-full object-contain mb-1 hover:opacity-80 transition-opacity cursor-pointer"
+            />
+          </button>
           <div className="text-xs text-gray-400 text-center truncate w-full">
             {esAdmin ? 'Administrador' : (estacion?.nombre || '...')}
           </div>
@@ -113,11 +115,13 @@ export default function Layout({ children, perfil, estacion }) {
 
         {/* Topbar móvil */}
         <div className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-          <img
-            src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
-            alt="Hidrocom"
-            className="h-8 object-contain"
-          />
+          <button onClick={() => router.push('/dashboard')}>
+            <img
+              src="https://i.ibb.co/k2ngM3Ts/hidrocom-logo.png"
+              alt="Hidrocom"
+              className="h-8 object-contain hover:opacity-80 transition-opacity cursor-pointer"
+            />
+          </button>
           <div className="flex items-center gap-2">
             <button onClick={toggleDark} className="p-2 rounded-lg hover:bg-gray-50">
               {darkMode ? (
