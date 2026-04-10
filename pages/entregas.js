@@ -87,7 +87,6 @@ export default function Entregas({ session }) {
       tipo_combustible: primerCombustible,
       volumen_litros: total_galones,
       precio_por_litro: 0,
-      costo_total: 0,
       regular_galones,
       premium_galones,
       diesel_galones,
@@ -206,7 +205,6 @@ export default function Entregas({ session }) {
               </div>
             </div>
 
-            {/* Tabla combustibles — solo galones */}
             <div className="border border-gray-100 rounded-xl overflow-hidden mb-4">
               <div className="grid grid-cols-2 bg-gray-50 px-4 py-2.5 border-b border-gray-100">
                 <div className="text-xs text-gray-400 font-medium">Combustible</div>
