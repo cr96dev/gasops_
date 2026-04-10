@@ -44,12 +44,14 @@ export default function Layout({ children, perfil, estacion }) {
     ...(esAdmin ? [{ href: '/admin', label: 'Panel', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' }] : [])
   ]
 
-  const logoStyle = { filter: darkMode ? 'invert(1) hue-rotate(180deg)' : 'none' }
+  const logoStyle = {
+    filter: darkMode ? 'brightness(0) invert(1)' : 'none',
+    opacity: darkMode ? 0.9 : 1
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
 
-      {/* Sidebar — solo desktop */}
       <aside className="hidden md:flex w-52 bg-white border-r border-gray-100 flex-col flex-shrink-0">
         <div className="px-4 py-4 border-b border-gray-100 flex flex-col items-center">
           <img src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg"
@@ -106,10 +108,8 @@ export default function Layout({ children, perfil, estacion }) {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
 
-        {/* Topbar móvil */}
         <div className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
           <img src="https://i.ibb.co/LdRMd3JL/Whats-App-Image-2026-04-09-at-15-02-41.jpg"
             alt="Hidrocom" className="h-8 object-contain" style={logoStyle} />
@@ -139,7 +139,6 @@ export default function Layout({ children, perfil, estacion }) {
           </div>
         </div>
 
-        {/* Menú desplegable móvil */}
         {menuAbierto && (
           <div className="md:hidden bg-white border-b border-gray-100 px-2 py-2 z-10">
             {todosLosItems.map(item => {
@@ -166,12 +165,10 @@ export default function Layout({ children, perfil, estacion }) {
           </div>
         )}
 
-        {/* Contenido */}
         <main className="flex-1 min-w-0 pb-6">
           {children}
         </main>
 
-        {/* Barra navegación inferior móvil */}
         <nav className="md:hidden bg-white border-t border-gray-100 fixed bottom-0 left-0 right-0 z-10">
           <div className="grid grid-cols-5 px-1">
             {todosLosItems.slice(0, 5).map(item => {
