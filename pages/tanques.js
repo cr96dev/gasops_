@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
+import { useToast, ToastContainer } from '../components/Toast'
+import { SkeletonDashboard } from '../components/Skeleton'
 
 const ESTACIONES_AUTOMATICAS = [
-  '85da69a8-1e81-48a7-8b0d-82df9eeec15e', // SS OAKLAND
-  'ae6216ff-18ee-4a7d-a8a8-3a9eab00c420', // SS SAN PEDRITO
-  '64a4e5c8-781f-4f53-92a4-bb6f6ae387b9', // SS MIRADOR
-  'a5bf7621-fa0a-44b2-891c-982446488d53', // SS QUETZAL
-  '3ae77767-ffa0-47f7-b391-f787e025d6cf', // SS KM 13
+  '85da69a8-1e81-48a7-8b0d-82df9eeec15e',
+  'ae6216ff-18ee-4a7d-a8a8-3a9eab00c420',
+  '64a4e5c8-781f-4f53-92a4-bb6f6ae387b9',
+  'a5bf7621-fa0a-44b2-891c-982446488d53',
+  '3ae77767-ffa0-47f7-b391-f787e025d6cf',
 ]
 
 const tiposTanque = [
@@ -19,15 +21,21 @@ const tiposTanque = [
 ]
 
 function CirculoTanque({ tipo, nivel, capacidad, onClick, automatica }) {
+  const [animado, setAnimado] = useState(0)
   const pct = capacidad > 0 ? Math.min(100, (nivel / capacidad) * 100) : 0
+
+  useEffect(() => {
+    const t = setTimeout(() => setAnimado(pct), 100)
+    return () => clearTimeout(t)
+  }, [pct])
+
   const r = 54
   const circ = 2 * Math.PI * r
-  const offset = circ - (pct / 100) * circ
+  const offset = circ - (animado / 100) * circ
   const alertColor = pct < 20 ? '#DC2626' : pct < 40 ? '#CA8A04' : tipo.color
 
   return (
-    <div
-      className={`flex flex-col items-center gap-3 ${!automatica && onClick ? 'cursor-pointer group' : 'cursor-default'}`}
+    <div className={`flex flex-col items-center gap-3 ${!automatica && onClick ? 'cursor-pointer group' : 'cursor-default'}`}
       onClick={!automatica && onClick ? onClick : undefined}>
       <div className="relative" style={{ width: 140, height: 140 }}>
         <svg width="140" height="140" style={{ transform: 'rotate(-90deg)' }}>
@@ -36,7 +44,7 @@ function CirculoTanque({ tipo, nivel, capacidad, onClick, automatica }) {
             stroke={alertColor} strokeWidth="12"
             strokeDasharray={circ} strokeDashoffset={offset}
             strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
+            style={{ transition: 'stroke-dashoffset 1s ease' }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-2xl font-semibold" style={{ color: alertColor }}>{Math.round(pct)}%</span>
@@ -46,7 +54,7 @@ function CirculoTanque({ tipo, nivel, capacidad, onClick, automatica }) {
       <div className="text-center">
         <div className="text-sm font-medium" style={{ color: tipo.color }}>{tipo.label}</div>
         <div className="text-xs text-gray-400">Cap: {Math.round(capacidad).toLocaleString('es-GT')} gal</div>
-        {pct < 20 && <div className="text-xs text-red-500 font-medium mt-0.5">Nivel crítico</div>}
+        {pct < 20 && <div className="text-xs text-red-500 font-medium mt-0.5">⚠ Nivel crítico</div>}
         {pct >= 20 && pct < 40 && <div className="text-xs text-amber-500 font-medium mt-0.5">Nivel bajo</div>}
         {pct >= 40 && <div className="text-xs text-green-600 mt-0.5">Normal</div>}
       </div>
@@ -64,8 +72,8 @@ export default function Tanques({ session }) {
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState({ capacidad_galones: '', nivel_galones: '' })
   const [guardando, setGuardando] = useState(false)
-  const [exito, setExito] = useState(false)
   const [esAutomatica, setEsAutomatica] = useState(false)
+  const { toasts, toast } = useToast()
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
@@ -76,20 +84,16 @@ export default function Tanques({ session }) {
     const { data: p } = await supabase.from('perfiles').select('*, estaciones(*)').eq('id', session.user.id).single()
     setPerfil(p)
     setEstacion(p?.estaciones)
-
     const automatica = ESTACIONES_AUTOMATICAS.includes(p?.estacion_id)
     setEsAutomatica(automatica)
-
     if (p?.estacion_id) {
       const { data: t } = await supabase.from('tanques').select('*').eq('estacion_id', p.estacion_id)
       const map = {}
       ;(t || []).forEach(x => { map[x.tipo] = x })
       setTanques(map)
-
       const { data: h } = await supabase.from('tanques_historial').select('*')
         .eq('estacion_id', p.estacion_id)
-        .order('created_at', { ascending: false })
-        .limit(30)
+        .order('created_at', { ascending: false }).limit(30)
       setHistorial(h || [])
     }
     setLoading(false)
@@ -99,10 +103,7 @@ export default function Tanques({ session }) {
     if (esAutomatica) return
     const t = tanques[tipo.key]
     setEditando(tipo)
-    setForm({
-      capacidad_galones: t?.capacidad_galones || '',
-      nivel_galones: t?.nivel_galones || '',
-    })
+    setForm({ capacidad_galones: t?.capacidad_galones || '', nivel_galones: t?.nivel_galones || '' })
   }
 
   async function guardar(e) {
@@ -111,7 +112,6 @@ export default function Tanques({ session }) {
     setGuardando(true)
     const capacidad = parseFloat(form.capacidad_galones) || 0
     const nivel = parseFloat(form.nivel_galones) || 0
-
     await supabase.from('tanques').upsert({
       estacion_id: perfil.estacion_id,
       tipo: editando.key,
@@ -119,7 +119,6 @@ export default function Tanques({ session }) {
       nivel_galones: nivel,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'estacion_id,tipo' })
-
     await supabase.from('tanques_historial').insert({
       estacion_id: perfil.estacion_id,
       tipo: editando.key,
@@ -127,27 +126,25 @@ export default function Tanques({ session }) {
       capacidad_galones: capacidad,
       creado_por: session.user.id,
     })
-
     setEditando(null)
-    setExito(true)
+    toast(`✓ Tanque de ${editando.label} actualizado`, 'success')
     await loadData()
-    setTimeout(() => setExito(false), 2000)
     setGuardando(false)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-screen text-sm text-gray-400">Cargando...</div>
+  if (loading) return <SkeletonDashboard />
 
   const totalGalones = tiposTanque.reduce((s, t) => s + (tanques[t.key]?.nivel_galones || 0), 0)
   const totalCapacidad = tiposTanque.reduce((s, t) => s + (tanques[t.key]?.capacidad_galones || 0), 0)
   const tipoLabel = { vpower: 'V-Power', super: 'Super', regular: 'Regular', diesel: 'Diesel' }
   const tipoColor = { vpower: '#DC2626', super: '#16A34A', regular: '#CA8A04', diesel: '#1C1917' }
-
   const ultimaActualizacion = tanques[tiposTanque.find(t => tanques[t.key])?.key]?.updated_at
     ? new Date(tanques[tiposTanque.find(t => tanques[t.key])?.key]?.updated_at).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })
     : null
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
+      <ToastContainer toasts={toasts} />
       <div className="p-6 max-w-2xl">
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -157,10 +154,8 @@ export default function Tanques({ session }) {
               <p className="text-xs text-blue-500 mt-0.5">Última actualización: {ultimaActualizacion}</p>
             )}
           </div>
-          {exito && <span className="text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">✓ Guardado</span>}
         </div>
 
-        {/* Aviso estación automática */}
         {esAutomatica && (
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-5 flex items-start gap-3">
             <svg className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -168,12 +163,11 @@ export default function Tanques({ session }) {
             </svg>
             <div>
               <div className="text-xs font-medium text-blue-800">Actualización automática</div>
-              <div className="text-xs text-blue-600 mt-0.5">Los niveles se actualizan automáticamente cada noche desde el sistema TLS-4. No es necesario ingresar datos manualmente.</div>
+              <div className="text-xs text-blue-600 mt-0.5">Los niveles se actualizan automáticamente cada noche desde el sistema TLS-4.</div>
             </div>
           </div>
         )}
 
-        {/* Resumen */}
         {totalCapacidad > 0 && (
           <div className="grid grid-cols-2 gap-3 mb-6">
             <div className="bg-gray-50 rounded-xl p-4">
@@ -187,18 +181,14 @@ export default function Tanques({ session }) {
           </div>
         )}
 
-        {/* Círculos */}
         <div className="bg-white rounded-xl border border-gray-100 p-6 mb-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 justify-items-center">
             {tiposTanque.map(tipo => (
-              <CirculoTanque
-                key={tipo.key}
-                tipo={tipo}
+              <CirculoTanque key={tipo.key} tipo={tipo}
                 nivel={tanques[tipo.key]?.nivel_galones || 0}
                 capacidad={tanques[tipo.key]?.capacidad_galones || 0}
                 onClick={() => abrirEdicion(tipo)}
-                automatica={esAutomatica}
-              />
+                automatica={esAutomatica} />
             ))}
           </div>
           {!esAutomatica && (
@@ -206,7 +196,6 @@ export default function Tanques({ session }) {
           )}
         </div>
 
-        {/* Formulario — solo estaciones manuales */}
         {!esAutomatica && editando && (
           <form onSubmit={guardar} className="bg-white rounded-xl border-2 p-5 mb-4"
             style={{ borderColor: editando.border }}>
@@ -241,15 +230,15 @@ export default function Tanques({ session }) {
               <button type="button" onClick={() => setEditando(null)}
                 className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
               <button type="submit" disabled={guardando}
-                className="text-sm px-4 py-1.5 text-white rounded-lg disabled:opacity-50"
+                className="text-sm px-4 py-1.5 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
                 style={{ background: editando.color }}>
+                {guardando && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                 {guardando ? 'Guardando...' : 'Guardar registro'}
               </button>
             </div>
           </form>
         )}
 
-        {/* Tabla resumen con datos completos */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mb-4">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -304,7 +293,6 @@ export default function Tanques({ session }) {
           </div>
         </div>
 
-        {/* Historial */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100">
             <h2 className="text-sm font-medium text-gray-700">Historial de registros</h2>
@@ -336,7 +324,7 @@ export default function Tanques({ session }) {
                       <td className="px-5 py-2.5 text-gray-600 text-xs">{fecha}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: tipoColor[h.tipo] }}></div>
+                          <div className="w-2 h-2 rounded-full" style={{ background: tipoColor[h.tipo] }}></div>
                           <span className="text-xs text-gray-700">{tipoLabel[h.tipo]}</span>
                         </div>
                       </td>
