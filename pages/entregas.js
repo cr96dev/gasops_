@@ -23,6 +23,7 @@ export default function Entregas({ session }) {
   const [showForm, setShowForm] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
+  const [errorMsg, setErrorMsg] = useState('')
   const { toasts, toast } = useToast()
 
   const formVacio = {
@@ -69,10 +70,13 @@ export default function Entregas({ session }) {
 
   async function guardar(e) {
     e.preventDefault()
+    setErrorMsg('')
+
     if (totalGalones() === 0) {
-      toast('Ingresa al menos un combustible', 'warning')
+      setErrorMsg('Ingresa al menos un combustible con galones.')
       return
     }
+
     setGuardando(true)
 
     const regular_galones = parseFloat(form.regular_galones) || 0
@@ -91,19 +95,18 @@ export default function Entregas({ session }) {
       diesel_galones * diesel_precio +
       diesel_plus_galones * diesel_plus_precio
 
-    // Insertar un solo registro con todos los combustibles
-    const { error } = await supabase.from('entregas').insert({
+    const primerCombustible = combustibles.find(c => parseFloat(form[`${c.key}_galones`]) > 0)?.key || 'regular'
+
+    const payload = {
       estacion_id: perfil.estacion_id,
       proveedor: form.proveedor,
       fecha_entrega: form.fecha_entrega,
       estado: form.estado,
       notas: form.notas,
-      // Columnas legacy requeridas — usamos el primer combustible con datos
-      tipo_combustible: combustibles.find(c => parseFloat(form[`${c.key}_galones`]) > 0)?.key || 'regular',
+      tipo_combustible: primerCombustible,
       volumen_litros: total_galones,
       precio_por_litro: 0,
       costo_total: costo_total_entrega,
-      // Columnas nuevas por combustible
       regular_galones, regular_precio,
       premium_galones, premium_precio,
       diesel_galones, diesel_precio,
@@ -111,10 +114,12 @@ export default function Entregas({ session }) {
       total_galones,
       costo_total_entrega,
       creado_por: session.user.id,
-    })
+    }
+
+    const { data: insertData, error } = await supabase.from('entregas').insert(payload).select()
 
     if (error) {
-      toast('Error al guardar la entrega', 'error')
+      setErrorMsg(`Error: ${error.message} (código: ${error.code})`)
       setGuardando(false)
       return
     }
@@ -191,7 +196,6 @@ export default function Entregas({ session }) {
           <form onSubmit={guardar} className="bg-white rounded-xl border border-blue-100 p-5 mb-5">
             <h2 className="text-sm font-medium text-gray-700 mb-4">Nueva entrega</h2>
 
-            {/* Info general */}
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Proveedor</label>
@@ -221,7 +225,6 @@ export default function Entregas({ session }) {
               </div>
             </div>
 
-            {/* Tabla combustibles */}
             <div className="border border-gray-100 rounded-xl overflow-hidden mb-4">
               <div className="grid grid-cols-4 bg-gray-50 px-4 py-2.5 border-b border-gray-100">
                 <div className="text-xs text-gray-400 font-medium">Combustible</div>
@@ -255,7 +258,6 @@ export default function Entregas({ session }) {
                   </div>
                 )
               })}
-              {/* Totales */}
               <div className="grid grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-t border-gray-100">
                 <div className="text-xs font-medium text-gray-600">Total</div>
                 <div className="text-sm font-medium text-gray-800 text-center">
@@ -268,8 +270,14 @@ export default function Entregas({ session }) {
               </div>
             </div>
 
+            {errorMsg && (
+              <div className="mb-3 bg-red-50 border border-red-100 rounded-lg px-4 py-3 text-xs text-red-700">
+                {errorMsg}
+              </div>
+            )}
+
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => { setShowForm(false); setForm(formVacio) }}
+              <button type="button" onClick={() => { setShowForm(false); setForm(formVacio); setErrorMsg('') }}
                 className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
               <button type="submit" disabled={guardando}
                 className="text-sm px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
@@ -280,7 +288,6 @@ export default function Entregas({ session }) {
           </form>
         )}
 
-        {/* Historial */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
