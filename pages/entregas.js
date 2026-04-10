@@ -8,10 +8,10 @@ import { SkeletonTable } from '../components/Skeleton'
 const estadoColor = { pendiente: 'text-amber-600 bg-amber-50', confirmada: 'text-green-700 bg-green-50', cancelada: 'text-red-600 bg-red-50' }
 
 const combustibles = [
-  { key: 'regular',     label: 'Regular', color: '#CA8A04', tanque: 'regular'  },
-  { key: 'premium',     label: 'Super',   color: '#16A34A', tanque: 'super'    },
-  { key: 'diesel',      label: 'Diesel',  color: '#1C1917', tanque: 'diesel'   },
-  { key: 'diesel_plus', label: 'V-Power', color: '#DC2626', tanque: 'vpower'   },
+  { key: 'regular',     label: 'Regular', color: '#CA8A04', tanque: 'regular' },
+  { key: 'premium',     label: 'Super',   color: '#16A34A', tanque: 'super'   },
+  { key: 'diesel',      label: 'Diesel',  color: '#1C1917', tanque: 'diesel'  },
+  { key: 'diesel_plus', label: 'V-Power', color: '#DC2626', tanque: 'vpower'  },
 ]
 
 export default function Entregas({ session }) {
@@ -31,10 +31,10 @@ export default function Entregas({ session }) {
     fecha_entrega: new Date().toISOString().split('T')[0],
     estado: 'confirmada',
     notas: '',
-    regular_galones: '', regular_precio: '',
-    premium_galones: '', premium_precio: '',
-    diesel_galones: '', diesel_precio: '',
-    diesel_plus_galones: '', diesel_plus_precio: '',
+    regular_galones: '',
+    premium_galones: '',
+    diesel_galones: '',
+    diesel_plus_galones: '',
   }
   const [form, setForm] = useState(formVacio)
 
@@ -60,14 +60,6 @@ export default function Entregas({ session }) {
     return combustibles.reduce((s, c) => s + (parseFloat(form[`${c.key}_galones`]) || 0), 0)
   }
 
-  function totalCosto() {
-    return combustibles.reduce((s, c) => {
-      const gal = parseFloat(form[`${c.key}_galones`]) || 0
-      const precio = parseFloat(form[`${c.key}_precio`]) || 0
-      return s + gal * precio
-    }, 0)
-  }
-
   async function guardar(e) {
     e.preventDefault()
     setErrorMsg('')
@@ -80,21 +72,10 @@ export default function Entregas({ session }) {
     setGuardando(true)
 
     const regular_galones = parseFloat(form.regular_galones) || 0
-    const regular_precio = parseFloat(form.regular_precio) || 0
     const premium_galones = parseFloat(form.premium_galones) || 0
-    const premium_precio = parseFloat(form.premium_precio) || 0
     const diesel_galones = parseFloat(form.diesel_galones) || 0
-    const diesel_precio = parseFloat(form.diesel_precio) || 0
     const diesel_plus_galones = parseFloat(form.diesel_plus_galones) || 0
-    const diesel_plus_precio = parseFloat(form.diesel_plus_precio) || 0
-
     const total_galones = regular_galones + premium_galones + diesel_galones + diesel_plus_galones
-    const costo_total_entrega =
-      regular_galones * regular_precio +
-      premium_galones * premium_precio +
-      diesel_galones * diesel_precio +
-      diesel_plus_galones * diesel_plus_precio
-
     const primerCombustible = combustibles.find(c => parseFloat(form[`${c.key}_galones`]) > 0)?.key || 'regular'
 
     const payload = {
@@ -106,20 +87,20 @@ export default function Entregas({ session }) {
       tipo_combustible: primerCombustible,
       volumen_litros: total_galones,
       precio_por_litro: 0,
-      costo_total: costo_total_entrega,
-      regular_galones, regular_precio,
-      premium_galones, premium_precio,
-      diesel_galones, diesel_precio,
-      diesel_plus_galones, diesel_plus_precio,
+      costo_total: 0,
+      regular_galones,
+      premium_galones,
+      diesel_galones,
+      diesel_plus_galones,
       total_galones,
-      costo_total_entrega,
+      costo_total_entrega: 0,
       creado_por: session.user.id,
     }
 
-    const { data: insertData, error } = await supabase.from('entregas').insert(payload).select()
+    const { error } = await supabase.from('entregas').insert(payload).select()
 
     if (error) {
-      setErrorMsg(`Error: ${error.message} (código: ${error.code})`)
+      setErrorMsg(`Error: ${error.message}`)
       setGuardando(false)
       return
     }
@@ -225,47 +206,29 @@ export default function Entregas({ session }) {
               </div>
             </div>
 
+            {/* Tabla combustibles — solo galones */}
             <div className="border border-gray-100 rounded-xl overflow-hidden mb-4">
-              <div className="grid grid-cols-4 bg-gray-50 px-4 py-2.5 border-b border-gray-100">
+              <div className="grid grid-cols-2 bg-gray-50 px-4 py-2.5 border-b border-gray-100">
                 <div className="text-xs text-gray-400 font-medium">Combustible</div>
                 <div className="text-xs text-gray-400 font-medium text-center">Galones recibidos</div>
-                <div className="text-xs text-gray-400 font-medium text-center">Precio / galón (Q)</div>
-                <div className="text-xs text-gray-400 font-medium text-right">Subtotal</div>
               </div>
-              {combustibles.map((c, i) => {
-                const gal = parseFloat(form[`${c.key}_galones`]) || 0
-                const precio = parseFloat(form[`${c.key}_precio`]) || 0
-                const subtotal = gal * precio
-                return (
-                  <div key={c.key} className={`grid grid-cols-4 gap-3 px-4 py-3 items-center ${i < combustibles.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }}></div>
-                      <span className="text-sm font-medium text-gray-700">{c.label}</span>
-                    </div>
-                    <input type="number" min="0" step="0.01"
-                      value={form[`${c.key}_galones`]}
-                      onChange={e => setForm(f => ({ ...f, [`${c.key}_galones`]: e.target.value }))}
-                      placeholder="0"
-                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400 w-full" />
-                    <input type="number" min="0" step="0.0001"
-                      value={form[`${c.key}_precio`]}
-                      onChange={e => setForm(f => ({ ...f, [`${c.key}_precio`]: e.target.value }))}
-                      placeholder="0.00"
-                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400 w-full" />
-                    <div className="text-sm text-right font-medium text-gray-700">
-                      {subtotal > 0 ? `Q${subtotal.toLocaleString('es-GT', { maximumFractionDigits: 2 })}` : '—'}
-                    </div>
+              {combustibles.map((c, i) => (
+                <div key={c.key} className={`grid grid-cols-2 gap-4 px-4 py-3 items-center ${i < combustibles.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: c.color }}></div>
+                    <span className="text-sm font-medium text-gray-700">{c.label}</span>
                   </div>
-                )
-              })}
-              <div className="grid grid-cols-4 gap-3 px-4 py-3 bg-gray-50 border-t border-gray-100">
-                <div className="text-xs font-medium text-gray-600">Total</div>
+                  <input type="number" min="0" step="0.01"
+                    value={form[`${c.key}_galones`]}
+                    onChange={e => setForm(f => ({ ...f, [`${c.key}_galones`]: e.target.value }))}
+                    placeholder="0"
+                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-center focus:outline-none focus:border-blue-400 w-full" />
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-4 px-4 py-3 bg-gray-50 border-t border-gray-100">
+                <div className="text-xs font-medium text-gray-600">Total galones</div>
                 <div className="text-sm font-medium text-gray-800 text-center">
                   {totalGalones() > 0 ? `${totalGalones().toLocaleString('es-GT', { maximumFractionDigits: 1 })} gal` : '—'}
-                </div>
-                <div></div>
-                <div className="text-sm font-medium text-gray-800 text-right">
-                  {totalCosto() > 0 ? `Q${totalCosto().toLocaleString('es-GT', { maximumFractionDigits: 2 })}` : '—'}
                 </div>
               </div>
             </div>
@@ -295,14 +258,13 @@ export default function Entregas({ session }) {
                 <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
                 <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Proveedor</th>
                 <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total gal</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Costo total</th>
                 <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Estado</th>
                 <th className="px-4 py-2.5 text-center text-xs text-gray-400 font-normal">Detalle</th>
               </tr>
             </thead>
             <tbody>
               {entregas.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-6 text-center text-xs text-gray-400">Sin entregas registradas aún</td></tr>
+                <tr><td colSpan={5} className="px-5 py-6 text-center text-xs text-gray-400">Sin entregas registradas aún</td></tr>
               )}
               {entregas.map(e => (
                 <>
@@ -311,9 +273,6 @@ export default function Entregas({ session }) {
                     <td className="px-3 py-3 text-gray-700">{e.proveedor}</td>
                     <td className="px-3 py-3 text-right text-gray-700">
                       {parseFloat(e.total_galones || e.volumen_litros || 0).toLocaleString('es-GT', { maximumFractionDigits: 1 })} gal
-                    </td>
-                    <td className="px-3 py-3 text-right font-medium text-gray-800">
-                      Q{parseFloat(e.costo_total_entrega || e.costo_total || 0).toLocaleString('es-GT', { maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-3 py-3 text-center">
                       <select value={e.estado} onChange={ev => cambiarEstado(e.id, ev.target.value)}
@@ -332,11 +291,10 @@ export default function Entregas({ session }) {
                   </tr>
                   {detalleAbierto === e.id && (
                     <tr key={`${e.id}-detalle`} className="border-b border-gray-100">
-                      <td colSpan={6} className="px-5 py-3 bg-gray-50">
+                      <td colSpan={5} className="px-5 py-3 bg-gray-50">
                         <div className="grid grid-cols-4 gap-3">
                           {combustibles.map(c => {
                             const gal = parseFloat(e[`${c.key}_galones`] || 0)
-                            const precio = parseFloat(e[`${c.key}_precio`] || 0)
                             if (gal === 0) return null
                             return (
                               <div key={c.key} className="bg-white rounded-lg border border-gray-100 p-3">
@@ -345,8 +303,6 @@ export default function Entregas({ session }) {
                                   <span className="text-xs font-medium text-gray-700">{c.label}</span>
                                 </div>
                                 <div className="text-sm font-medium text-gray-800">{gal.toLocaleString('es-GT')} gal</div>
-                                {precio > 0 && <div className="text-xs text-gray-400 mt-0.5">Q{precio.toFixed(4)}/gal</div>}
-                                {precio > 0 && <div className="text-xs text-gray-600 mt-0.5">Q{(gal * precio).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</div>}
                               </div>
                             )
                           })}
