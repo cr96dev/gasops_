@@ -816,7 +816,7 @@ export default function Admin({ session }) {
                     {['ventas','entregas','facturas'].map(tipo => (
                       <button key={tipo} onClick={() => exportarTodaLaRed(tipo)} disabled={exportando===`red-${tipo}`}
                         className="text-xs px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 text-green-700 disabled:opacity-40 capitalize">
-                        {exportando===`red-${tipo}`?'...`:`↓ ${tipo}`}
+                        {exportando===`red-${tipo}` ? '...' : `↓ ${tipo}`}
                       </button>
                     ))}
                   </div>
