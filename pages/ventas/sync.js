@@ -1,11 +1,19 @@
 export default async function handler(req, res) {
+  // DEBUG TEMPORAL
+  console.log("Secret recibido:", req.headers["x-bridge-secret"]);
+  console.log("Secret en env:", process.env.BRIDGE_SECRET);
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   const secret = req.headers["x-bridge-secret"];
   if (!secret || secret !== process.env.BRIDGE_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ 
+      error: "Unauthorized",
+      recibido: secret,
+      esperado_longitud: process.env.BRIDGE_SECRET?.length
+    });
   }
 
   const siteId = req.headers["x-site-id"];
