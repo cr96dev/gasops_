@@ -4,16 +4,13 @@ export default async function handler(req, res) {
   }
 
   const secret = req.headers["x-bridge-secret"];
-  const EXPECTED = process.env.BRIDGE_SECRET || "hidrocom2026"; // fallback hardcodeado
-  
+  const EXPECTED = process.env.BRIDGE_SECRET || "hidrocom2026";
   if (!secret || secret !== EXPECTED) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const siteId = req.headers["x-site-id"];
   const body = req.body;
-
-  if (!body || !body.date || !siteId) {
+  if (!body || !body.date) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -22,22 +19,24 @@ export default async function handler(req, res) {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rlthkqqeeepqqrmeoiun.supabase.co",
       process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsdGhrcXFlZWVwcXFybWVvaXVuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTc1NTIzMiwiZXhwIjoyMDkxMzMxMjMyfQ.b1nFB0SiLvvBH-aD7HbzKUUWIPM9jvU5UjG6N3n83s0"
-  );
+    );
 
     const { data, error } = await supabase
-      .from("ventas_diarias")
+      .from("ventas")
       .upsert(
         {
-          site_id: body.site_id || siteId,
-          site_name: body.site_name,
+          estacion_id: body.estacion_id,
           fecha: body.date,
-          total_litros: body.totals?.total_litros || null,
-          total_ventas: body.totals?.total_ventas || null,
-          num_transacciones: body.totals?.num_transacciones || null,
-          raw_data: body,
-          sincronizado_en: new Date().toISOString(),
+          regular_litros: body.totals?.regular_litros || null,
+          regular_ingresos: body.totals?.regular_ingresos || null,
+          premium_litros: body.totals?.premium_litros || null,
+          premium_ingresos: body.totals?.premium_ingresos || null,
+          diesel_litros: body.totals?.diesel_litros || null,
+          diesel_ingresos: body.totals?.diesel_ingresos || null,
+          diesel_plus_litros: body.totals?.diesel_plus_litros || null,
+          diesel_plus_ingresos: body.totals?.diesel_plus_ingresos || null,
         },
-        { onConflict: "site_id,fecha" }
+        { onConflict: "estacion_id,fecha" }
       )
       .select();
 
