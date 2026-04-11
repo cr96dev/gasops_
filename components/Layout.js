@@ -45,6 +45,12 @@ export default function Layout({ children, perfil, estacion }) {
     ...(esAdmin ? [{ href: '/admin', label: 'Panel', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' }] : [])
   ]
 
+  const adminItems = [
+    { href: '/admin', label: 'Panel general', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' },
+    { href: '/reportes', label: 'Reportes', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+    { href: '/facturas-fel', label: 'Facturas FEL', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  ]
+
   return (
     <div className="flex min-h-screen bg-gray-50">
 
@@ -80,24 +86,20 @@ export default function Layout({ children, perfil, estacion }) {
           {esAdmin && (
             <>
               <div className="px-3 pt-3 pb-1 text-xs text-gray-400 uppercase tracking-wider">Admin</div>
-              <button onClick={() => router.push('/admin')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  router.pathname === '/admin' ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
-                }`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
-                </svg>
-                Panel general
-              </button>
-              <button onClick={() => router.push('/reportes')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  router.pathname === '/reportes' ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
-                }`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Reportes
-              </button>
+              {adminItems.map(item => {
+                const active = router.pathname === item.href
+                return (
+                  <button key={item.href} onClick={() => router.push(item.href)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                      active ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                    </svg>
+                    {item.label}
+                  </button>
+                )
+              })}
             </>
           )}
         </nav>
@@ -172,20 +174,22 @@ export default function Layout({ children, perfil, estacion }) {
             })}
             {esAdmin && (
               <>
-                <button onClick={() => { router.push('/admin'); setMenuAbierto(false) }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${router.pathname==='/admin'?'bg-purple-50 text-purple-700 font-medium':'text-gray-600 hover:bg-gray-50'}`}>
-                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
-                  </svg>
-                  Panel general
-                </button>
-                <button onClick={() => { router.push('/reportes'); setMenuAbierto(false) }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${router.pathname==='/reportes'?'bg-purple-50 text-purple-700 font-medium':'text-gray-600 hover:bg-gray-50'}`}>
-                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Reportes
-                </button>
+                <div className="px-4 pt-2 pb-1 text-xs text-gray-400 uppercase tracking-wider">Admin</div>
+                {adminItems.map(item => {
+                  const active = router.pathname === item.href
+                  return (
+                    <button key={item.href}
+                      onClick={() => { router.push(item.href); setMenuAbierto(false) }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${
+                        active ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                      }`}>
+                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                      </svg>
+                      {item.label}
+                    </button>
+                  )
+                })}
               </>
             )}
             <div className="border-t border-gray-100 mt-2 pt-2 px-4">
