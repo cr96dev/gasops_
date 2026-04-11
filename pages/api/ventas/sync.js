@@ -4,7 +4,9 @@ export default async function handler(req, res) {
   }
 
   const secret = req.headers["x-bridge-secret"];
-  if (!secret || secret !== process.env.BRIDGE_SECRET) {
+  const EXPECTED = process.env.BRIDGE_SECRET || "hidrocom2026"; // fallback hardcodeado
+  
+  if (!secret || secret !== EXPECTED) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
