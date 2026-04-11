@@ -126,8 +126,10 @@ export default function FacturasFEL({ session }) {
   })
 
   async function exportarExcel() {
-    setExportando(true)
+  setExportando(true)
+  try {
     const wb = XLSX.utils.book_new()
+    const periodo = `${filtros.fechaInicio}_al_${filtros.fechaFin}`
 
     // Hoja 1: Detalle de facturas
     const filas = facturasFiltradas.map(f => ({
@@ -136,10 +138,9 @@ export default function FacturasFEL({ session }) {
       'No. Factura': f.numero_factura,
       Cliente: f.proveedor,
       'Monto (Q)': parseFloat(f.monto || 0),
-      UUID: f.notas?.split('UUID: ')[1] || '',
     }))
     const ws1 = XLSX.utils.json_to_sheet(filas)
-    ws1['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 25 }, { wch: 25 }, { wch: 12 }, { wch: 38 }]
+    ws1['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 25 }, { wch: 25 }, { wch: 12 }]
     XLSX.utils.book_append_sheet(wb, ws1, 'Facturas')
 
     // Hoja 2: Resumen por estación
@@ -151,7 +152,12 @@ export default function FacturasFEL({ session }) {
         'Total (Q)': parseFloat(datos.monto.toFixed(2)),
         '% del total': parseFloat(((datos.monto / totalMonto) * 100).toFixed(1))
       }))
-    filasEst.push({ Estación: 'TOTAL', 'No. Facturas': totalFacturas, 'Total (Q)': parseFloat(totalMonto.toFixed(2)), '% del total': 100 })
+    filasEst.push({
+      Estación: 'TOTAL',
+      'No. Facturas': totalFacturas,
+      'Total (Q)': parseFloat(totalMonto.toFixed(2)),
+      '% del total': 100
+    })
     const ws2 = XLSX.utils.json_to_sheet(filasEst)
     ws2['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 12 }]
     XLSX.utils.book_append_sheet(wb, ws2, 'Por estación')
@@ -164,55 +170,23 @@ export default function FacturasFEL({ session }) {
         'No. Facturas': datos.facturas,
         'Total (Q)': parseFloat(datos.monto.toFixed(2)),
       }))
-    filasFecha.push({ Fecha: 'TOTAL', 'No. Facturas': totalFacturas, 'Total (Q)': parseFloat(totalMonto.toFixed(2)) })
+    filasFecha.push({
+      Fecha: 'TOTAL',
+      'No. Facturas': totalFacturas,
+      'Total (Q)': parseFloat(totalMonto.toFixed(2))
+    })
     const ws3 = XLSX.utils.json_to_sheet(filasFecha)
     ws3['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }]
     XLSX.utils.book_append_sheet(wb, ws3, 'Por fecha')
 
-    // Hoja 4: Items vendidos
-    const itemsData = []
-    for (const f of facturasFiltradas) {
-      if (!items[f.id]) {
-        const { data } = await supabase.from('facturas_fel_items').select('*').eq('factura_id', f.id)
-        if (data) {
-          data.forEach(item => {
-            itemsData.push({
-              Fecha: f.fecha_emision,
-              Estación: f.estaciones?.nombre || '',
-              'No. Factura': f.numero_factura,
-              Producto: item.descripcion,
-              Cantidad: parseFloat(item.cantidad),
-              'P. Unitario (Q)': parseFloat(item.precio_unitario),
-              'Total (Q)': parseFloat(item.total),
-              Tipo: item.tipo
-            })
-          })
-        }
-      } else {
-        items[f.id].forEach(item => {
-          itemsData.push({
-            Fecha: f.fecha_emision,
-            Estación: f.estaciones?.nombre || '',
-            'No. Factura': f.numero_factura,
-            Producto: item.descripcion,
-            Cantidad: parseFloat(item.cantidad),
-            'P. Unitario (Q)': parseFloat(item.precio_unitario),
-            'Total (Q)': parseFloat(item.total),
-            Tipo: item.tipo
-          })
-        })
-      }
-    }
-    const ws4 = XLSX.utils.json_to_sheet(itemsData)
-    ws4['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 25 }, { wch: 35 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 10 }]
-    XLSX.utils.book_append_sheet(wb, ws4, 'Productos vendidos')
-
-    const periodo = `${filtros.fechaInicio}_al_${filtros.fechaFin}`
     XLSX.writeFile(wb, `Facturas_FEL_${periodo}.xlsx`)
     toast('✓ Excel descargado', 'success')
-    setExportando(false)
+  } catch (err) {
+    toast('Error al generar Excel: ' + err.message, 'error')
   }
-
+  setExportando(false)
+}
+  
   const vistas = [
     { key: 'diaria', label: 'Hoy' },
     { key: 'ayer', label: 'Ayer' },
