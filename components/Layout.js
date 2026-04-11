@@ -10,20 +10,34 @@ const navItems = [
   { href: '/inventario',  label: 'Inventario',   icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4V5z' },
   { href: '/entregas',    label: 'Entregas',     icon: 'M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z' },
   { href: '/facturacion', label: 'Facturas',     icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z' },
-  { href: '/tienda', label: 'Tienda', icon: 'M3 3h18v4H3V3zm0 6h18v12H3V9zm4 2v8h2v-8H7zm4 0v8h2v-8h-2zm4 0v8h2v-8h-2z' },
+  { href: '/tienda',      label: 'Tienda',       icon: 'M3 3h18v4H3V3zm0 6h18v12H3V9zm4 2v8h2v-8H7zm4 0v8h2v-8h-2zm4 0v8h2v-8h-2z' },
 ]
+
+const adminItems = [
+  { href: '/admin',        label: 'Panel general', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' },
+  { href: '/reportes',     label: 'Reportes',      icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { href: '/facturas-fel', label: 'Facturas FEL',  icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+]
+
+const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
 
 export default function Layout({ children, perfil, estacion }) {
   const router = useRouter()
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const esAdmin = perfil?.rol === 'admin'
+  const esOakland = perfil?.estacion_id === OAKLAND_ID
+
+  // Filtrar items según rol — Tienda solo para admin y gerente Oakland
   const itemsVisibles = navItems.filter(item => {
-  if (item.href === '/tienda') {
-    return esAdmin || perfil?.estacion_id === '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
-  }
-  return true
-})
+    if (item.href === '/tienda') return esAdmin || esOakland
+    return true
+  })
+
+  const todosLosItems = [
+    ...itemsVisibles,
+    ...(esAdmin ? [{ href: '/admin', label: 'Panel', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' }] : [])
+  ]
 
   useEffect(() => {
     const saved = localStorage.getItem('darkMode') === 'true'
@@ -35,11 +49,8 @@ export default function Layout({ children, perfil, estacion }) {
     const next = !darkMode
     setDarkMode(next)
     localStorage.setItem('darkMode', next)
-    if (next) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    if (next) document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
   }
 
   async function logout() {
@@ -47,23 +58,11 @@ export default function Layout({ children, perfil, estacion }) {
     router.push('/')
   }
 
-  const todosLosItems = [
-    ...navItems,
-    ...(esAdmin ? [{ href: '/admin', label: 'Panel', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' }] : [])
-  ]
-
-  const adminItems = [
-    { href: '/admin', label: 'Panel general', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' },
-    { href: '/reportes', label: 'Reportes', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    { href: '/facturas-fel', label: 'Facturas FEL', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-  ]
-
   return (
     <div className="flex min-h-screen bg-gray-50">
 
-      {/* Sidebar — solo desktop */}
+      {/* Sidebar desktop */}
       <aside className="hidden md:flex w-56 bg-white border-r border-gray-100 flex-col flex-shrink-0">
-
         <div className="px-4 py-5 border-b border-gray-100 flex flex-col items-center">
           <button onClick={() => router.push('/dashboard')} className="w-full">
             <img src="/logo.svg" alt="GasOps" className="w-full object-contain mb-1"
@@ -75,7 +74,7 @@ export default function Layout({ children, perfil, estacion }) {
         </div>
 
         <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
-          {navItems.map(item => {
+          {itemsVisibles.map(item => {
             const active = router.pathname === item.href
             return (
               <button key={item.href} onClick={() => router.push(item.href)}
@@ -164,7 +163,7 @@ export default function Layout({ children, perfil, estacion }) {
         {/* Menú desplegable móvil */}
         {menuAbierto && (
           <div className="md:hidden bg-white border-b border-gray-100 px-2 py-2 z-10">
-            {todosLosItems.map(item => {
+            {itemsVisibles.map(item => {
               const active = router.pathname === item.href
               return (
                 <button key={item.href}
