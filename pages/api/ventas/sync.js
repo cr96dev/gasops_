@@ -20,9 +20,9 @@ export default async function handler(req, res) {
   try {
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "https://rlthkqqeeepqqrmeoiun.supabase.co",
+      process.env.SUPABASE_SERVICE_ROLE_KEY || "TU_NUEVA_KEY_AQUI"
+  );
 
     const { data, error } = await supabase
       .from("ventas_diarias")
