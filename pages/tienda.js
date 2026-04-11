@@ -3,10 +3,8 @@ import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
-import * as XLSX from 'xlsx'
 
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
-const PAGE_SIZE = 50
 
 export default function Tienda({ session }) {
   const router = useRouter()
@@ -36,18 +34,6 @@ export default function Tienda({ session }) {
   const [formGasto, setFormGasto] = useState({ descripcion: '', monto: '', categoria: 'General' })
   const [guardandoGasto, setGuardandoGasto] = useState(false)
   const [showFormGasto, setShowFormGasto] = useState(false)
-
-  // Facturas FEL — paginadas
-  const [facturasFEL, setFacturasFEL] = useState([])
-  const [totalFELCount, setTotalFELCount] = useState(0)
-  const [totalFELMonto, setTotalFELMonto] = useState(0)
-  const [paginaFEL, setPaginaFEL] = useState(0)
-  const [cargandoFEL, setCargandoFEL] = useState(false)
-  const [cargandoMasFEL, setCargandoMasFEL] = useState(false)
-  const [fechaInicioFEL, setFechaInicioFEL] = useState(new Date().toISOString().split('T')[0])
-  const [fechaFinFEL, setFechaFinFEL] = useState(new Date().toISOString().split('T')[0])
-  const [detalleAbierto, setDetalleAbierto] = useState(null)
-  const [itemsFEL, setItemsFEL] = useState({})
 
   // Proveedores
   const [facturasProveedores, setFacturasProveedores] = useState([])
@@ -90,9 +76,7 @@ export default function Tienda({ session }) {
   }, [vistaResumen, fechaResumen, fechaInicioResumen, fechaFinResumen])
 
   useEffect(() => {
-    if (resumen && vistaResumen !== 'diaria') {
-      renderizarGrafica()
-    }
+    if (resumen && vistaResumen !== 'diaria') renderizarGrafica()
   }, [resumen])
 
   function getRango() {
@@ -104,7 +88,6 @@ export default function Tienda({ session }) {
     setCargandoResumen(true)
     const { ini, fin } = getRango()
 
-    // Llamar funciones SQL agregadas — sin límite, sin traer registros
     const [{ data: dataFEL }, { data: dataGastos }, { data: dataVentas }] = await Promise.all([
       supabase.rpc('resumen_tienda', { fecha_ini: ini, fecha_fin: fin }),
       supabase.rpc('resumen_gastos_tienda', { fecha_ini: ini, fecha_fin: fin }),
@@ -123,11 +106,18 @@ export default function Tienda({ session }) {
     const totalOtros = parseFloat(vs.total_otros || 0)
     const totalCobros = totalEfectivo + totalTarjeta + totalNeonet + totalOtros
     const cajaNeta = parseFloat(vs.caja_neta || 0)
+    const cantidadFEL = parseInt(fel.cantidad_fel || 0)
+    const porDia = fel.por_dia || {}
+    const diasConVentas = Object.keys(porDia).length
 
     setResumen({
       totalFEL,
-      cantidadFEL: parseInt(fel.cantidad_fel || 0),
-      porDia: fel.por_dia || {},
+      cantidadFEL,
+      porDia,
+      diasConVentas,
+      ticketPromedio: cantidadFEL > 0 ? totalFEL / cantidadFEL : 0,
+      facturasDiarias: diasConVentas > 0 ? cantidadFEL / diasConVentas : cantidadFEL,
+      ventaDiaria: diasConVentas > 0 ? totalFEL / diasConVentas : totalFEL,
       totalGastos,
       porCategoria: gs.por_categoria || {},
       totalEfectivo,
@@ -138,13 +128,12 @@ export default function Tienda({ session }) {
       cajaNeta,
     })
 
-    // Si es vista diaria, cargar formulario y gastos detalle
     if (vistaResumen === 'diaria') {
       const { data: venta } = await supabase.from('tienda_ventas')
         .select('*').eq('fecha', fechaResumen).single()
       setRegistroVenta(venta || null)
       if (venta) {
-        setFormVenta({ efectivo: venta.efectivo || '', tarjeta: venta.tarjeta || '', neonet: venta.neonet || '', otros: venta.otros || '', notas: venta.notas || '' })
+        setFormVenta({ efectivo: venta.efectivo||'', tarjeta: venta.tarjeta||'', neonet: venta.neonet||'', otros: venta.otros||'', notas: venta.notas||'' })
       } else {
         setFormVenta({ efectivo: '', tarjeta: '', neonet: '', otros: '', notas: '' })
       }
@@ -152,7 +141,6 @@ export default function Tienda({ session }) {
         .select('*').eq('fecha', fechaResumen).order('created_at', { ascending: false })
       setGastos(gsDetalle || [])
     } else {
-      // Para períodos cargar gastos detalle para la tabla
       const { data: gsDetalle } = await supabase.from('tienda_gastos')
         .select('*').gte('fecha', ini).lte('fecha', fin).order('fecha', { ascending: false })
       setGastos(gsDetalle || [])
@@ -197,68 +185,13 @@ export default function Tienda({ session }) {
       })
     }
 
-    if (window.Chart) {
-      cargarChart()
-    } else {
+    if (window.Chart) cargarChart()
+    else {
       const s = document.createElement('script')
       s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'
       s.onload = cargarChart
       document.head.appendChild(s)
     }
-  }
-
-  // Facturas FEL paginadas
-  async function cargarFacturasFEL(reset = true) {
-    if (reset) {
-      setCargandoFEL(true)
-      setPaginaFEL(0)
-      setFacturasFEL([])
-    } else {
-      setCargandoMasFEL(true)
-    }
-
-    const pagina = reset ? 0 : paginaFEL + 1
-    const desde = pagina * PAGE_SIZE
-    const hasta = desde + PAGE_SIZE - 1
-
-    // Total real sin límite — usando count
-    if (reset) {
-      const { count, data: todos } = await supabase.from('tienda_facturas_fel')
-        .select('monto', { count: 'exact' })
-        .gte('fecha', fechaInicioFEL)
-        .lte('fecha', fechaFinFEL)
-      setTotalFELCount(count || 0)
-      const montoTotal = (todos || []).reduce((s, f) => s + parseFloat(f.monto || 0), 0)
-      setTotalFELMonto(montoTotal)
-    }
-
-    // Página de registros
-    const { data } = await supabase.from('tienda_facturas_fel')
-      .select('*')
-      .gte('fecha', fechaInicioFEL)
-      .lte('fecha', fechaFinFEL)
-      .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(desde, hasta)
-
-    if (reset) {
-      setFacturasFEL(data || [])
-    } else {
-      setFacturasFEL(prev => [...prev, ...(data || [])])
-      setPaginaFEL(pagina)
-    }
-
-    setCargandoFEL(false)
-    setCargandoMasFEL(false)
-  }
-
-  async function verItemsFEL(facturaId) {
-    if (detalleAbierto === facturaId) { setDetalleAbierto(null); return }
-    setDetalleAbierto(facturaId)
-    if (itemsFEL[facturaId]) return
-    const { data } = await supabase.from('tienda_facturas_fel_items')
-      .select('*').eq('factura_id', facturaId).order('id')
-    setItemsFEL(prev => ({ ...prev, [facturaId]: data || [] }))
   }
 
   async function guardarVenta(e) {
@@ -373,7 +306,6 @@ export default function Tienda({ session }) {
   const totalGastosDia = gastos.reduce((s, g) => s + parseFloat(g.monto||0), 0)
   const totalProvPendientes = facturasProveedores.filter(f => f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+parseFloat(f.monto||0),0)
   const estadoColor = { pendiente:'bg-amber-50 text-amber-600', pagada:'bg-green-50 text-green-700', vencida:'bg-red-50 text-red-600' }
-  const hayMasFEL = facturasFEL.length < totalFELCount
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
@@ -385,13 +317,15 @@ export default function Tienda({ session }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-5 border-b border-gray-100 overflow-x-auto">
-          {[['resumen','Resumen'],['facturas-fel','Facturas clientes (FEL)'],['proveedores','Facturas proveedores']].map(([key,label]) => (
-            <button key={key} onClick={() => { setTab(key); if (key==='facturas-fel') cargarFacturasFEL() }}
+        <div className="flex gap-1 mb-5 border-b border-gray-100">
+          {[['resumen','Resumen'],['proveedores','Facturas proveedores']].map(([key,label]) => (
+            <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm border-b-2 transition-colors whitespace-nowrap ${tab===key?'border-blue-600 text-blue-700 font-medium':'border-transparent text-gray-500 hover:text-gray-700'}`}>
               {label}
               {key==='proveedores' && totalProvPendientes>0 && (
-                <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Q{Math.round(totalProvPendientes).toLocaleString('es-GT')}</span>
+                <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+                  Q{Math.round(totalProvPendientes).toLocaleString('es-GT')}
+                </span>
               )}
             </button>
           ))}
@@ -400,9 +334,17 @@ export default function Tienda({ session }) {
         {/* ── Tab Resumen ── */}
         {tab === 'resumen' && (
           <div className="space-y-4">
+
+            {/* Selector vista */}
             <div className="bg-white rounded-xl border border-gray-100 p-4">
               <div className="flex gap-1.5 flex-wrap mb-3">
-                {[{key:'diaria',label:'Hoy'},{key:'semanal',label:'Esta semana'},{key:'mensual',label:'Este mes'},{key:'mes_anterior',label:'Mes anterior'},{key:'personalizado',label:'Personalizado'}].map(v => (
+                {[
+                  {key:'diaria',label:'Hoy'},
+                  {key:'semanal',label:'Esta semana'},
+                  {key:'mensual',label:'Este mes'},
+                  {key:'mes_anterior',label:'Mes anterior'},
+                  {key:'personalizado',label:'Personalizado'},
+                ].map(v => (
                   <button key={v.key} onClick={() => aplicarVistaResumen(v.key)}
                     className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${vistaResumen===v.key?'bg-blue-600 border-blue-600 text-white font-medium':'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                     {v.label}
@@ -431,10 +373,12 @@ export default function Tienda({ session }) {
             </div>
 
             {cargandoResumen ? (
-              <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
             ) : resumen && (
               <>
-                {/* Tarjetas */}
+                {/* Tarjetas principales */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="bg-blue-50 rounded-xl p-4">
                     <div className="text-xs text-blue-600 mb-1">Ventas FEL</div>
@@ -454,6 +398,43 @@ export default function Tienda({ session }) {
                     <div className={`text-xl font-medium ${resumen.cajaNeta>=0?'text-gray-800':'text-red-700'}`}>Q{resumen.cajaNeta.toLocaleString('es-GT',{maximumFractionDigits:2})}</div>
                   </div>
                 </div>
+
+                {/* Métricas */}
+                {resumen.cantidadFEL > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-5">
+                    <h2 className="text-sm font-medium text-gray-700 mb-3">
+                      Métricas {vistaResumen === 'diaria' ? 'del día' : 'del período'}
+                    </h2>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="text-center p-4 bg-gray-50 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">Ticket promedio</div>
+                        <div className="text-lg font-medium text-gray-800">
+                          Q{resumen.ticketPromedio.toLocaleString('es-GT',{maximumFractionDigits:2})}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">por factura</div>
+                      </div>
+                      <div className="text-center p-4 bg-gray-50 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">Facturas por día</div>
+                        <div className="text-lg font-medium text-gray-800">
+                          {vistaResumen === 'diaria'
+                            ? resumen.cantidadFEL
+                            : resumen.facturasDiarias.toFixed(1)}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">promedio diario</div>
+                      </div>
+                      <div className="text-center p-4 bg-gray-50 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">Venta por día</div>
+                        <div className="text-lg font-medium text-gray-800">
+                          Q{(vistaResumen === 'diaria'
+                            ? resumen.totalFEL
+                            : resumen.ventaDiaria
+                          ).toLocaleString('es-GT',{maximumFractionDigits:0})}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">promedio diario</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Formas de cobro */}
                 {resumen.totalCobros > 0 && (
@@ -499,7 +480,6 @@ export default function Tienda({ session }) {
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
-                          <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Facturas</th>
                           <th className="px-5 py-2.5 text-right text-xs text-gray-400 font-normal">Total (Q)</th>
                         </tr>
                       </thead>
@@ -507,7 +487,6 @@ export default function Tienda({ session }) {
                         {Object.entries(resumen.porDia).sort((a,b)=>b[0].localeCompare(a[0])).map(([fecha,total]) => (
                           <tr key={fecha} className="border-b border-gray-50 hover:bg-gray-50">
                             <td className="px-5 py-2.5 text-gray-700">{fecha}</td>
-                            <td className="px-3 py-2.5 text-right text-gray-500 text-xs">—</td>
                             <td className="px-5 py-2.5 text-right font-medium text-gray-800">Q{parseFloat(total).toLocaleString('es-GT',{maximumFractionDigits:2})}</td>
                           </tr>
                         ))}
@@ -521,7 +500,7 @@ export default function Tienda({ session }) {
                   <>
                     <div className="bg-white rounded-xl border border-gray-100 p-5">
                       <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro del día</h2>
-                      <form onSubmit={guardarVenta} onKeyDown={e => { if (e.key==='Enter') e.preventDefault() }}>
+                      <form onSubmit={guardarVenta} onKeyDown={e => { if(e.key==='Enter') e.preventDefault() }}>
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           {[{key:'efectivo',label:'Efectivo'},{key:'tarjeta',label:'Tarjeta'},{key:'neonet',label:'Neonet'},{key:'otros',label:'Otros'}].map(m => (
                             <div key={m.key}>
@@ -657,131 +636,6 @@ export default function Tienda({ session }) {
           </div>
         )}
 
-        {/* ── Tab Facturas FEL ── */}
-        {tab === 'facturas-fel' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl border border-gray-100 p-4">
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Fecha inicio</label>
-                  <input type="date" value={fechaInicioFEL} onChange={e => setFechaInicioFEL(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Fecha fin</label>
-                  <input type="date" value={fechaFinFEL} onChange={e => setFechaFinFEL(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-2">
-                  {[
-                    {label:'Hoy',fn:()=>{setFechaInicioFEL(hoy);setFechaFinFEL(hoy)}},
-                    {label:'Este mes',fn:()=>{const d=new Date();setFechaInicioFEL(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`);setFechaFinFEL(hoy)}},
-                  ].map(btn => (
-                    <button key={btn.label} onClick={btn.fn}
-                      className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
-                      {btn.label}
-                    </button>
-                  ))}
-                </div>
-                <button onClick={() => cargarFacturasFEL(true)} disabled={cargandoFEL}
-                  className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5">
-                  {cargandoFEL && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                  Buscar
-                </button>
-              </div>
-            </div>
-
-            {totalFELCount > 0 && (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <div className="text-xs text-blue-600 mb-1">Total facturas</div>
-                  <div className="text-xl font-medium text-blue-800">{totalFELCount.toLocaleString('es-GT')}</div>
-                </div>
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <div className="text-xs text-blue-600 mb-1">Monto total real</div>
-                  <div className="text-xl font-medium text-blue-800">Q{totalFELMonto.toLocaleString('es-GT',{maximumFractionDigits:2})}</div>
-                </div>
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <div className="text-xs text-blue-600 mb-1">Promedio</div>
-                  <div className="text-xl font-medium text-blue-800">Q{(totalFELMonto/totalFELCount).toLocaleString('es-GT',{maximumFractionDigits:2})}</div>
-                </div>
-              </div>
-            )}
-
-            {totalFELCount > 0 && facturasFEL.length < totalFELCount && (
-              <div className="text-xs text-amber-600 bg-amber-50 px-4 py-2 rounded-lg">
-                Mostrando {facturasFEL.length} de {totalFELCount} facturas. El monto total ya refleja todas las facturas del período.
-              </div>
-            )}
-
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              {cargandoFEL ? (
-                <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>
-              ) : facturasFEL.length === 0 ? (
-                <div className="px-5 py-8 text-center text-sm text-gray-400">Selecciona un período y presiona Buscar</div>
-              ) : (
-                <>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
-                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">No. Factura</th>
-                        <th className="px-3 py-2.5 text-left text-xs text-gray-400 font-normal">Cliente</th>
-                        <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Monto</th>
-                        <th className="px-4 py-2.5 text-center text-xs text-gray-400 font-normal">Det.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {facturasFEL.map(f => (
-                        <>
-                          <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
-                            <td className="px-4 py-2.5 text-xs text-gray-600">{f.fecha}</td>
-                            <td className="px-3 py-2.5 text-xs font-mono text-gray-600">{f.numero_factura}</td>
-                            <td className="px-3 py-2.5 text-xs text-gray-700">{f.nombre_cliente}</td>
-                            <td className="px-3 py-2.5 text-right text-sm font-medium text-gray-800">Q{parseFloat(f.monto).toLocaleString('es-GT',{minimumFractionDigits:2})}</td>
-                            <td className="px-4 py-2.5 text-center">
-                              <button onClick={() => verItemsFEL(f.id)} className="text-xs text-blue-600 hover:text-blue-800">
-                                {detalleAbierto===f.id?'▲':'▼'}
-                              </button>
-                            </td>
-                          </tr>
-                          {detalleAbierto===f.id && (
-                            <tr key={f.id+'-det'} className="border-b border-gray-100">
-                              <td colSpan={5} className="px-4 py-3 bg-blue-50/40">
-                                {!itemsFEL[f.id] ? (
-                                  <div className="text-xs text-gray-400 text-center">Cargando...</div>
-                                ) : itemsFEL[f.id].length===0 ? (
-                                  <div className="text-xs text-gray-400 text-center">Sin detalle</div>
-                                ) : itemsFEL[f.id].map((item,idx) => (
-                                  <div key={idx} className="flex justify-between text-xs py-1.5 border-b border-blue-50 last:border-0">
-                                    <span className="text-gray-700 font-medium">{item.descripcion} <span className="text-gray-400 font-normal">x{parseFloat(item.cantidad)}</span></span>
-                                    <span className="text-gray-800">Q{parseFloat(item.total).toLocaleString('es-GT',{minimumFractionDigits:2})}</span>
-                                  </div>
-                                ))}
-                              </td>
-                            </tr>
-                          )}
-                        </>
-                      ))}
-                    </tbody>
-                  </table>
-                  {hayMasFEL && (
-                    <div className="px-5 py-4 border-t border-gray-100 text-center">
-                      <button onClick={() => cargarFacturasFEL(false)} disabled={cargandoMasFEL}
-                        className="text-sm px-6 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 disabled:opacity-50 flex items-center gap-2 mx-auto">
-                        {cargandoMasFEL && <div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>}
-                        {cargandoMasFEL ? 'Cargando...' : `Cargar más (${totalFELCount - facturasFEL.length} restantes)`}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* ── Tab Proveedores ── */}
         {tab === 'proveedores' && (
           <div className="space-y-4">
@@ -789,7 +643,9 @@ export default function Tienda({ session }) {
               <div className="flex gap-3">
                 <div className="bg-amber-50 rounded-xl px-4 py-3">
                   <div className="text-xs text-amber-600 mb-0.5">Por pagar</div>
-                  <div className="text-lg font-medium text-amber-800">Q{facturasProveedores.filter(f=>f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+parseFloat(f.monto||0),0).toLocaleString('es-GT',{maximumFractionDigits:0})}</div>
+                  <div className="text-lg font-medium text-amber-800">
+                    Q{facturasProveedores.filter(f=>f.estado==='pendiente'||f.estado==='vencida').reduce((s,f)=>s+parseFloat(f.monto||0),0).toLocaleString('es-GT',{maximumFractionDigits:0})}
+                  </div>
                 </div>
                 <div className="bg-red-50 rounded-xl px-4 py-3">
                   <div className="text-xs text-red-600 mb-0.5">Vencidas</div>
@@ -831,8 +687,8 @@ export default function Tienda({ session }) {
                   </div>
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">Monto (Q)</label>
-                    <input type="number" min="0" step="0.01" value={formProveedor.monto} onChange={e => setFormProveedor(f=>({...f,monto:e.target.value}))} required
-                      placeholder="0.00"
+                    <input type="number" min="0" step="0.01" value={formProveedor.monto}
+                      onChange={e => setFormProveedor(f=>({...f,monto:e.target.value}))} required placeholder="0.00"
                       className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
                   </div>
                   <div>
@@ -856,14 +712,14 @@ export default function Tienda({ session }) {
                     className="text-sm px-4 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
                   <button type="submit" disabled={guardandoProveedor}
                     className="text-sm px-5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                    {guardandoProveedor?'Guardando...':'Guardar'}
+                    {guardandoProveedor ? 'Guardando...' : 'Guardar'}
                   </button>
                 </div>
               </form>
             )}
 
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              {facturasProveedores.length===0 ? (
+              {facturasProveedores.length === 0 ? (
                 <div className="px-5 py-8 text-center text-sm text-gray-400">Sin facturas de proveedores registradas</div>
               ) : (
                 <table className="w-full text-sm">
