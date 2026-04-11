@@ -152,12 +152,7 @@ export default function FacturasFEL({ session }) {
         'Total (Q)': parseFloat(datos.monto.toFixed(2)),
         '% del total': parseFloat(((datos.monto / totalMonto) * 100).toFixed(1))
       }))
-    filasEst.push({
-      Estación: 'TOTAL',
-      'No. Facturas': totalFacturas,
-      'Total (Q)': parseFloat(totalMonto.toFixed(2)),
-      '% del total': 100
-    })
+    filasEst.push({ Estación: 'TOTAL', 'No. Facturas': totalFacturas, 'Total (Q)': parseFloat(totalMonto.toFixed(2)), '% del total': 100 })
     const ws2 = XLSX.utils.json_to_sheet(filasEst)
     ws2['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 12 }]
     XLSX.utils.book_append_sheet(wb, ws2, 'Por estación')
@@ -170,23 +165,82 @@ export default function FacturasFEL({ session }) {
         'No. Facturas': datos.facturas,
         'Total (Q)': parseFloat(datos.monto.toFixed(2)),
       }))
-    filasFecha.push({
-      Fecha: 'TOTAL',
-      'No. Facturas': totalFacturas,
-      'Total (Q)': parseFloat(totalMonto.toFixed(2))
-    })
+    filasFecha.push({ Fecha: 'TOTAL', 'No. Facturas': totalFacturas, 'Total (Q)': parseFloat(totalMonto.toFixed(2)) })
     const ws3 = XLSX.utils.json_to_sheet(filasFecha)
     ws3['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }]
     XLSX.utils.book_append_sheet(wb, ws3, 'Por fecha')
 
+    // Hoja 4: Items — una sola consulta con todos los IDs
+    const facturaIds = facturasFiltradas.map(f => f.id)
+    const facturaMap = {}
+    facturasFiltradas.forEach(f => { facturaMap[f.id] = f })
+
+    // Consultar en lotes de 100 para no exceder límites
+    const itemsData = []
+    const loteSize = 100
+    for (let i = 0; i < facturaIds.length; i += loteSize) {
+      const lote = facturaIds.slice(i, i + loteSize)
+      const { data: loteItems } = await supabase
+        .from('facturas_fel_items')
+        .select('*')
+        .in('factura_id', lote)
+        .order('factura_id')
+
+      if (loteItems) {
+        loteItems.forEach(item => {
+          const factura = facturaMap[item.factura_id]
+          itemsData.push({
+            Fecha: item.fecha,
+            Estación: factura?.estaciones?.nombre || '',
+            'No. Factura': factura?.numero_factura || '',
+            Cliente: factura?.proveedor || '',
+            Producto: item.descripcion,
+            Cantidad: parseFloat(item.cantidad),
+            Unidad: item.unidad,
+            'P. Unitario (Q)': parseFloat(item.precio_unitario),
+            'Total (Q)': parseFloat(item.total),
+            Tipo: item.tipo
+          })
+        })
+      }
+    }
+
+    // Resumen por producto
+    const porProducto = {}
+    itemsData.forEach(item => {
+      if (!porProducto[item.Producto]) porProducto[item.Producto] = { cantidad: 0, total: 0, facturas: 0 }
+      porProducto[item.Producto].cantidad += item.Cantidad
+      porProducto[item.Producto].total += item['Total (Q)']
+      porProducto[item.Producto].facturas++
+    })
+
+    if (itemsData.length > 0) {
+      const ws4 = XLSX.utils.json_to_sheet(itemsData)
+      ws4['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 25 }, { wch: 25 }, { wch: 35 }, { wch: 10 }, { wch: 8 }, { wch: 15 }, { wch: 12 }, { wch: 10 }]
+      XLSX.utils.book_append_sheet(wb, ws4, 'Productos vendidos')
+
+      // Hoja 5: Ranking de productos
+      const filasProductos = Object.entries(porProducto)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([producto, datos]) => ({
+          Producto: producto,
+          'Veces vendido': datos.facturas,
+          'Cantidad total': parseFloat(datos.cantidad.toFixed(2)),
+          'Total (Q)': parseFloat(datos.total.toFixed(2)),
+          '% del total': parseFloat(((datos.total / totalMonto) * 100).toFixed(2))
+        }))
+      const ws5 = XLSX.utils.json_to_sheet(filasProductos)
+      ws5['!cols'] = [{ wch: 38 }, { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 12 }]
+      XLSX.utils.book_append_sheet(wb, ws5, 'Ranking productos')
+    }
+
     XLSX.writeFile(wb, `Facturas_FEL_${periodo}.xlsx`)
-    toast('✓ Excel descargado', 'success')
+    toast('✓ Excel descargado — ' + itemsData.length + ' productos', 'success')
   } catch (err) {
-    toast('Error al generar Excel: ' + err.message, 'error')
+    toast('Error: ' + err.message, 'error')
   }
   setExportando(false)
 }
-  
   const vistas = [
     { key: 'diaria', label: 'Hoy' },
     { key: 'ayer', label: 'Ayer' },
