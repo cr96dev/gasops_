@@ -279,7 +279,7 @@ export default function Ventas({ session }) {
             )}
           </div>
         ) : (
-          <form onSubmit={guardar} className="space-y-4">
+          <form onSubmit={guardar} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}>r} className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Combustible vendido</h2>
               <div className="grid grid-cols-3 gap-2 mb-2">
