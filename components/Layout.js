@@ -10,6 +10,7 @@ const navItems = [
   { href: '/inventario',  label: 'Inventario',   icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4V5z' },
   { href: '/entregas',    label: 'Entregas',     icon: 'M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z' },
   { href: '/facturacion', label: 'Facturas',     icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z' },
+  { href: '/tienda', label: 'Tienda', icon: 'M3 3h18v4H3V3zm0 6h18v12H3V9zm4 2v8h2v-8H7zm4 0v8h2v-8h-2zm4 0v8h2v-8h-2z' },
 ]
 
 export default function Layout({ children, perfil, estacion }) {
@@ -17,6 +18,12 @@ export default function Layout({ children, perfil, estacion }) {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const esAdmin = perfil?.rol === 'admin'
+  const itemsVisibles = navItems.filter(item => {
+  if (item.href === '/tienda') {
+    return esAdmin || perfil?.estacion_id === '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
+  }
+  return true
+})
 
   useEffect(() => {
     const saved = localStorage.getItem('darkMode') === 'true'
