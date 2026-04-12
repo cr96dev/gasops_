@@ -39,11 +39,20 @@ export default function Ventas({ session }) {
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0])
+  const [completandoCobros, setCompletandoCobros] = useState(false)
   const [form, setForm] = useState({
     regular_litros: '', regular_ingresos: '',
     premium_litros: '', premium_ingresos: '',
     diesel_litros: '', diesel_ingresos: '',
     diesel_plus_litros: '', diesel_plus_ingresos: '',
+    neonet: '', bac: '', deposito: '', cupon: '',
+    neonet_prepago: '', descuento_club_bi: '', ach_transferencia: '',
+    flota_credomatic: '', caja_chica: '', vales_clientes: '',
+    uno_plus: '', nomina: '', descuento_amigo: '',
+    piloto: '', gasoline: '', prueba_surtidor: '',
+    notas: ''
+  })
+  const [formCobros, setFormCobros] = useState({
     neonet: '', bac: '', deposito: '', cupon: '',
     neonet_prepago: '', descuento_club_bi: '', ach_transferencia: '',
     flota_credomatic: '', caja_chica: '', vales_clientes: '',
@@ -58,6 +67,12 @@ export default function Ventas({ session }) {
     ? todosLosCombustibles.filter(c => estacion.combustibles.includes(c.tipo))
     : todosLosCombustibles.filter(c => c.tipo !== 'vpower')
 
+  // Verifica si el registro fue creado por el bridge (formas de cobro en cero)
+  function registroSinCobros(registro) {
+    if (!registro) return false
+    return metodosPago.every(m => !registro[m.key] || parseFloat(registro[m.key]) === 0)
+  }
+
   useEffect(() => {
     if (!session) { router.push('/'); return }
     loadData()
@@ -65,6 +80,7 @@ export default function Ventas({ session }) {
 
   useEffect(() => {
     if (perfil?.estacion_id) verificarFecha(fechaSeleccionada)
+    setCompletandoCobros(false)
   }, [fechaSeleccionada, perfil])
 
   async function loadData() {
@@ -93,6 +109,10 @@ export default function Ventas({ session }) {
     setForm(f => ({ ...f, [key]: val }))
   }
 
+  function setFieldCobro(key, val) {
+    setFormCobros(f => ({ ...f, [key]: val }))
+  }
+
   function totalGalones() {
     return combustibles.reduce((s, c) => s + (parseFloat(form[`${c.key}_litros`]) || 0), 0)
   }
@@ -105,8 +125,17 @@ export default function Ventas({ session }) {
     return metodosPago.reduce((s, m) => s + (parseFloat(form[m.key]) || 0), 0)
   }
 
+  function totalMetodosCobros() {
+    return metodosPago.reduce((s, m) => s + (parseFloat(formCobros[m.key]) || 0), 0)
+  }
+
   function diferencia() {
     return totalIngresos() - totalMetodos()
+  }
+
+  function diferenciaCobros() {
+    const totalIng = combustibles.reduce((s, c) => s + parseFloat(registroFecha[`${c.key}_ingresos`] || 0), 0)
+    return totalIng - totalMetodosCobros()
   }
 
   async function guardar(e) {
@@ -137,6 +166,24 @@ export default function Ventas({ session }) {
     setGuardando(false)
   }
 
+  async function guardarCobros(e) {
+    e.preventDefault()
+    setGuardando(true)
+    const payload = {}
+    metodosPago.forEach(m => { payload[m.key] = parseFloat(formCobros[m.key]) || 0 })
+    if (formCobros.notas) payload.notas = formCobros.notas
+
+    const { error } = await supabase.from('ventas').update(payload).eq('id', registroFecha.id)
+    if (error) {
+      toast('Error al guardar formas de cobro.', 'error')
+    } else {
+      toast(`✓ Formas de cobro del ${fechaSeleccionada} guardadas correctamente`, 'success')
+      setCompletandoCobros(false)
+      await loadData()
+    }
+    setGuardando(false)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-screen">
       <div className="flex flex-col items-center gap-3">
@@ -152,6 +199,7 @@ export default function Ventas({ session }) {
   const hoy = new Date().toISOString().split('T')[0]
   const esHoy = fechaSeleccionada === hoy
   const esFuturo = fechaSeleccionada > hoy
+  const sinCobros = registroSinCobros(registroFecha)
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
@@ -204,18 +252,43 @@ export default function Ventas({ session }) {
 
         {esFuturo ? null : registroFecha ? (
           <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
-              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <div className="text-sm font-medium text-green-800">
-                  Registro del {new Date(fechaSeleccionada + 'T12:00:00').toLocaleDateString('es-GT', { dateStyle: 'long' })} ya existe
-                </div>
-                <div className="text-xs text-green-600 mt-0.5">Las ventas de este día ya fueron registradas y no pueden modificarse. Si hay un error, comunícate con el administrador.</div>
-              </div>
-            </div>
 
+            {/* Banner: registro automático sin cobros */}
+            {sinCobros && !completandoCobros && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <div className="text-sm font-medium text-blue-800">Ventas cargadas automáticamente</div>
+                    <div className="text-xs text-blue-600 mt-0.5">Las ventas fueron extraídas del Wayne Fusion. Puedes ingresar las formas de cobro del día.</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCompletandoCobros(true)}
+                  className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap">
+                  Ingresar cobros
+                </button>
+              </div>
+            )}
+
+            {/* Banner: registro completo */}
+            {!sinCobros && (
+              <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
+                <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <div className="text-sm font-medium text-green-800">
+                    Registro del {new Date(fechaSeleccionada + 'T12:00:00').toLocaleDateString('es-GT', { dateStyle: 'long' })} completo
+                  </div>
+                  <div className="text-xs text-green-600 mt-0.5">Las ventas y formas de cobro ya fueron registradas. Si hay un error, comunícate con el administrador.</div>
+                </div>
+              </div>
+            )}
+
+            {/* Resumen de combustibles */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Combustible vendido</h2>
               <div className="grid grid-cols-3 gap-2 mb-2">
@@ -241,42 +314,113 @@ export default function Ventas({ session }) {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
-              {metodosPago.map(m => {
-                const val = parseFloat(registroFecha[m.key] || 0)
-                if (val === 0) return null
-                return (
-                  <div key={m.key} className="flex justify-between py-1.5 border-b border-gray-50">
-                    <span className="text-sm text-gray-600">{m.label}</span>
-                    <span className="text-sm text-gray-800">Q{val.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+            {/* Formulario de formas de cobro (solo si está completando) */}
+            {completandoCobros && (
+              <form onSubmit={guardarCobros} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} className="space-y-4">
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="text-xs text-gray-400 font-medium">Método</div>
+                    <div className="text-xs text-gray-400 font-medium">Monto (Q)</div>
                   </div>
-                )
-              })}
-              {(() => {
-                const totalIng = combustibles.reduce((s, c) => s + parseFloat(registroFecha[`${c.key}_ingresos`] || 0), 0)
-                const totalCob = metodosPago.reduce((s, m) => s + parseFloat(registroFecha[m.key] || 0), 0)
-                const dif = totalIng - totalCob
-                return (
-                  <div className="pt-2 mt-1 space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Total ingresos</span>
-                      <span className="font-medium">Q{totalIng.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                  {metodosPago.map(m => (
+                    <div key={m.key} className="grid grid-cols-2 gap-2 mb-2">
+                      <div className="flex items-center text-sm text-gray-700">{m.label}</div>
+                      <input type="number" min="0" step="0.01"
+                        value={formCobros[m.key]}
+                        onChange={e => setFieldCobro(m.key, e.target.value)}
+                        placeholder="0.00"
+                        className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Total cobros</span>
-                      <span className="font-medium">Q{totalCob.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className={`flex justify-between text-sm font-medium pt-1 border-t border-gray-100 ${Math.abs(dif) < 0.01 ? 'text-green-700' : 'text-red-600'}`}>
-                      <span>Diferencia</span>
-                      <span>{Math.abs(dif) < 0.01 ? '✓ Cuadra' : `Q${dif.toFixed(2)}`}</span>
-                    </div>
+                  ))}
+                  <div className="border-t border-gray-100 pt-3 mt-2 space-y-1.5">
+                    {(() => {
+                      const totalIng = combustibles.reduce((s, c) => s + parseFloat(registroFecha[`${c.key}_ingresos`] || 0), 0)
+                      const totalCob = totalMetodosCobros()
+                      const dif = totalIng - totalCob
+                      return (
+                        <>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Total ingresos</span>
+                            <span className="font-medium text-gray-800">Q{totalIng.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Total formas de cobro</span>
+                            <span className="font-medium text-gray-800">Q{totalCob.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className={`flex justify-between text-sm font-medium pt-1 border-t border-gray-100 ${Math.abs(dif) < 0.01 ? 'text-green-700' : 'text-red-600'}`}>
+                            <span>Diferencia</span>
+                            <span>{dif >= 0 ? '+' : ''}Q{dif.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                          </div>
+                          {Math.abs(dif) < 0.01 && totalCob > 0 && (
+                            <div className="text-xs text-green-600 text-right">✓ Cuadra perfectamente</div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
-                )
-              })()}
-            </div>
+                </div>
 
-            {registroFecha.notas && (
+                <div className="bg-white rounded-xl border border-gray-100 p-5">
+                  <label className="text-xs text-gray-500 block mb-1">Observaciones (opcional)</label>
+                  <textarea value={formCobros.notas} onChange={e => setFieldCobro('notas', e.target.value)}
+                    rows={2} placeholder="Notas del día..."
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setCompletandoCobros(false)}
+                    className="text-sm px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={guardando}
+                    className="bg-blue-600 text-white text-sm px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+                    {guardando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                    {guardando ? 'Guardando...' : 'Guardar formas de cobro'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Formas de cobro ya ingresadas */}
+            {!completandoCobros && !sinCobros && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5">
+                <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
+                {metodosPago.map(m => {
+                  const val = parseFloat(registroFecha[m.key] || 0)
+                  if (val === 0) return null
+                  return (
+                    <div key={m.key} className="flex justify-between py-1.5 border-b border-gray-50">
+                      <span className="text-sm text-gray-600">{m.label}</span>
+                      <span className="text-sm text-gray-800">Q{val.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )
+                })}
+                {(() => {
+                  const totalIng = combustibles.reduce((s, c) => s + parseFloat(registroFecha[`${c.key}_ingresos`] || 0), 0)
+                  const totalCob = metodosPago.reduce((s, m) => s + parseFloat(registroFecha[m.key] || 0), 0)
+                  const dif = totalIng - totalCob
+                  return (
+                    <div className="pt-2 mt-1 space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Total ingresos</span>
+                        <span className="font-medium">Q{totalIng.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Total cobros</span>
+                        <span className="font-medium">Q{totalCob.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className={`flex justify-between text-sm font-medium pt-1 border-t border-gray-100 ${Math.abs(dif) < 0.01 ? 'text-green-700' : 'text-red-600'}`}>
+                        <span>Diferencia</span>
+                        <span>{Math.abs(dif) < 0.01 ? '✓ Cuadra' : `Q${dif.toFixed(2)}`}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
+            {registroFecha.notas && !completandoCobros && (
               <div className="bg-white rounded-xl border border-gray-100 p-5">
                 <div className="text-xs text-gray-500 mb-1">Observaciones</div>
                 <div className="text-sm text-gray-700">{registroFecha.notas}</div>
