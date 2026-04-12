@@ -5,10 +5,10 @@ import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
 
 const combustibles = [
-  { key: 'regular', label: 'Regular' },
-  { key: 'premium', label: 'Super' },
+  { key: 'regular', label: 'Super' },
+  { key: 'premium', label: 'V-Power' },
   { key: 'diesel', label: 'Diesel' },
-  { key: 'diesel_plus', label: 'V-Power' },
+  { key: 'diesel_plus', label: 'Regular' },
 ]
 
 const metodosPago = [
@@ -383,10 +383,10 @@ export default function Ventas({ session }) {
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
-                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Regular</th>
                   <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Super</th>
-                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Diesel</th>
                   <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">V-Power</th>
+                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Diesel</th>
+                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Regular</th>
                   <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total Q</th>
                   <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Diferencia</th>
                 </tr>
