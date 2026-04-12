@@ -4,11 +4,11 @@ import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
 
-const combustibles = [
-  { key: 'regular', label: 'Super' },
-  { key: 'premium', label: 'V-Power' },
-  { key: 'diesel', label: 'Diesel' },
-  { key: 'diesel_plus', label: 'Regular' },
+const todosLosCombustibles = [
+  { key: 'regular', label: 'Super', tipo: 'super' },
+  { key: 'premium', label: 'V-Power', tipo: 'vpower' },
+  { key: 'diesel', label: 'Diesel', tipo: 'diesel' },
+  { key: 'diesel_plus', label: 'Regular', tipo: 'regular' },
 ]
 
 const metodosPago = [
@@ -52,6 +52,11 @@ export default function Ventas({ session }) {
     notas: ''
   })
   const { toasts, toast } = useToast()
+
+  // Combustibles disponibles según la estación
+  const combustibles = estacion?.combustibles
+    ? todosLosCombustibles.filter(c => estacion.combustibles.includes(c.tipo))
+    : todosLosCombustibles.filter(c => c.tipo !== 'vpower')
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
@@ -383,17 +388,16 @@ export default function Ventas({ session }) {
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
-                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Super</th>
-                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">V-Power</th>
-                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Diesel</th>
-                  <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Regular</th>
+                  {combustibles.map(c => (
+                    <th key={c.key} className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">{c.label}</th>
+                  ))}
                   <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total Q</th>
                   <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Diferencia</th>
                 </tr>
               </thead>
               <tbody>
                 {historial.length === 0 && (
-                  <tr><td colSpan={7} className="px-5 py-6 text-center text-xs text-gray-400">Sin registros aún</td></tr>
+                  <tr><td colSpan={combustibles.length + 3} className="px-5 py-6 text-center text-xs text-gray-400">Sin registros aún</td></tr>
                 )}
                 {historial.map(v => {
                   const total = v.regular_ingresos + v.premium_ingresos + v.diesel_ingresos + v.diesel_plus_ingresos
@@ -408,10 +412,11 @@ export default function Ventas({ session }) {
                         {v.fecha}
                         {esHoyReg && <span className="ml-2 text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">Hoy</span>}
                       </td>
-                      <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.regular_litros).toLocaleString('es-GT')} gal</td>
-                      <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.premium_litros).toLocaleString('es-GT')} gal</td>
-                      <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.diesel_litros).toLocaleString('es-GT')} gal</td>
-                      <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.diesel_plus_litros).toLocaleString('es-GT')} gal</td>
+                      {combustibles.map(c => (
+                        <td key={c.key} className="px-3 py-3 text-right text-gray-600">
+                          {parseFloat(v[`${c.key}_litros`] || 0).toLocaleString('es-GT')} gal
+                        </td>
+                      ))}
                       <td className="px-3 py-3 text-right font-medium text-gray-800">Q{Math.round(total).toLocaleString('es-GT')}</td>
                       <td className="px-3 py-3 text-center">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${Math.abs(dif) < 0.01 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
