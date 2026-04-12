@@ -21,23 +21,123 @@ const adminItems = [
 
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
 
+function ModalCambioContrasena({ onClose }) {
+  const [actual, setActual] = useState('')
+  const [nueva, setNueva] = useState('')
+  const [confirmar, setConfirmar] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState('')
+  const [exito, setExito] = useState(false)
+
+  async function handleGuardar(e) {
+    e.preventDefault()
+    setError('')
+
+    if (nueva.length < 6) {
+      setError('La nueva contraseña debe tener al menos 6 caracteres.')
+      return
+    }
+    if (nueva !== confirmar) {
+      setError('Las contraseñas no coinciden.')
+      return
+    }
+
+    setGuardando(true)
+
+    // Verificar contraseña actual re-autenticando
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: actual,
+    })
+
+    if (signInError) {
+      setError('La contraseña actual es incorrecta.')
+      setGuardando(false)
+      return
+    }
+
+    // Actualizar contraseña
+    const { error: updateError } = await supabase.auth.updateUser({ password: nueva })
+    if (updateError) {
+      setError('Error al cambiar la contraseña. Intenta de nuevo.')
+    } else {
+      setExito(true)
+    }
+    setGuardando(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Cambiar contraseña</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+
+        {exito ? (
+          <div className="px-6 py-8 text-center">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="text-sm font-medium text-gray-900 mb-1">Contraseña actualizada</div>
+            <div className="text-xs text-gray-400 mb-4">Tu contraseña fue cambiada exitosamente.</div>
+            <button onClick={onClose} className="text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              Cerrar
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleGuardar} className="px-6 py-5 space-y-4">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Contraseña actual</label>
+              <input type="password" value={actual} onChange={e => setActual(e.target.value)} required
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Nueva contraseña</label>
+              <input type="password" value={nueva} onChange={e => setNueva(e.target.value)} required
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Confirmar nueva contraseña</label>
+              <input type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)} required
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+            </div>
+            {error && (
+              <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs text-red-700">{error}</div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={onClose}
+                className="text-sm px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
+                Cancelar
+              </button>
+              <button type="submit" disabled={guardando}
+                className="text-sm px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                {guardando && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                {guardando ? 'Guardando...' : 'Cambiar contraseña'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Layout({ children, perfil, estacion }) {
   const router = useRouter()
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
+  const [modalContrasena, setModalContrasena] = useState(false)
   const esAdmin = perfil?.rol === 'admin'
   const esOakland = perfil?.estacion_id === OAKLAND_ID
 
-  // Admin no ve navItems de gerente. Gerente Oakland ve Tienda.
   const itemsVisibles = esAdmin ? [] : navItems.filter(item => {
     if (item.href === '/tienda') return esOakland
     return true
   })
-
-  const todosLosItems = [
-    ...itemsVisibles,
-    ...(esAdmin ? [] : [])
-  ]
 
   useEffect(() => {
     const saved = localStorage.getItem('darkMode') === 'true'
@@ -61,6 +161,8 @@ export default function Layout({ children, perfil, estacion }) {
   return (
     <div className="flex min-h-screen bg-gray-50">
 
+      {modalContrasena && <ModalCambioContrasena onClose={() => setModalContrasena(false)} />}
+
       {/* Sidebar desktop */}
       <aside className="hidden md:flex w-56 bg-white border-r border-gray-100 flex-col flex-shrink-0">
         <div className="px-4 py-5 border-b border-gray-100 flex flex-col items-center">
@@ -73,7 +175,6 @@ export default function Layout({ children, perfil, estacion }) {
         </div>
 
         <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
-          {/* Nav items — solo gerentes */}
           {itemsVisibles.map(item => {
             const active = router.pathname === item.href
             return (
@@ -89,7 +190,6 @@ export default function Layout({ children, perfil, estacion }) {
             )
           })}
 
-          {/* Admin items */}
           {esAdmin && (
             <>
               <div className="px-3 pt-2 pb-1 text-xs text-gray-400 uppercase tracking-wider">Admin</div>
@@ -110,7 +210,6 @@ export default function Layout({ children, perfil, estacion }) {
             </>
           )}
 
-          {/* Tienda para gerente Oakland */}
           {!esAdmin && esOakland && (
             <>
               <div className="px-3 pt-3 pb-1 text-xs text-gray-400 uppercase tracking-wider">Tienda</div>
@@ -136,9 +235,15 @@ export default function Layout({ children, perfil, estacion }) {
             </div>
           </button>
           <div className="text-xs text-gray-500 truncate mb-1">{perfil?.nombre_completo}</div>
-          <button onClick={logout} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
-            Cerrar sesión
-          </button>
+          <div className="flex items-center justify-between">
+            <button onClick={() => setModalContrasena(true)}
+              className="text-xs text-gray-400 hover:text-blue-500 transition-colors">
+              Cambiar contraseña
+            </button>
+            <button onClick={logout} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+              Cerrar sesión
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -214,8 +319,14 @@ export default function Layout({ children, perfil, estacion }) {
                 })}
               </>
             )}
-            <div className="border-t border-gray-100 mt-2 pt-2 px-4">
-              <div className="text-xs text-gray-400 mb-1">{perfil?.nombre_completo}</div>
+            <div className="border-t border-gray-100 mt-2 pt-2 px-4 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-gray-400 mb-1">{perfil?.nombre_completo}</div>
+                <button onClick={() => { setModalContrasena(true); setMenuAbierto(false) }}
+                  className="text-xs text-blue-500 hover:text-blue-700">
+                  Cambiar contraseña
+                </button>
+              </div>
               <button onClick={logout} className="text-xs text-red-400 hover:text-red-600">Cerrar sesión</button>
             </div>
           </div>
@@ -226,7 +337,7 @@ export default function Layout({ children, perfil, estacion }) {
           {children}
         </main>
 
-        {/* Barra inferior móvil — solo gerentes */}
+        {/* Barra inferior móvil */}
         {!esAdmin && (
           <nav className="md:hidden bg-white border-t border-gray-100 fixed bottom-0 left-0 right-0 z-10">
             <div className="grid grid-cols-6 px-1">
