@@ -153,7 +153,7 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
                 <div className="grid grid-cols-3 bg-gray-50 px-4 py-2 border-b border-gray-100 text-xs text-gray-400 font-medium">
                   <div>Combustible</div><div className="text-center">Galones</div><div className="text-center">Ingresos (Q)</div>
                 </div>
-                {[['Regular','regular'],['Super','premium'],['Diesel','diesel'],['V-Power','diesel_plus']].map(([label,key]) => (
+                {[['Super','regular'],['V-Power','premium'],['Diesel','diesel'],['Regular','diesel_plus']].map(([label,key]) => (
                   <div key={key} className="grid grid-cols-3 gap-2 px-4 py-2.5 border-b border-gray-50 items-center">
                     <span className="text-sm text-gray-700">{label}</span>
                     <input type="number" value={form[`${key}_litros`]||''} onChange={e=>setForm(f=>({...f,[`${key}_litros`]:e.target.value}))}
@@ -185,7 +185,7 @@ function ModalEdicion({ registro, tipo, onClose, onGuardado }) {
                 <div className="grid grid-cols-2 bg-gray-50 px-4 py-2 border-b border-gray-100 text-xs text-gray-400 font-medium">
                   <div>Combustible</div><div className="text-center">Galones</div>
                 </div>
-                {[['Regular','regular'],['Super','premium'],['Diesel','diesel'],['V-Power','diesel_plus']].map(([label,key]) => (
+                {[['Super','regular'],['V-Power','premium'],['Diesel','diesel'],['Regular','diesel_plus']].map(([label,key]) => (
                   <div key={key} className="grid grid-cols-2 gap-2 px-4 py-2.5 border-b border-gray-50 items-center">
                     <span className="text-sm text-gray-700">{label}</span>
                     <input type="number" value={form[`${key}_galones`]||''} onChange={e=>setForm(f=>({...f,[`${key}_galones`]:e.target.value}))}
@@ -355,10 +355,10 @@ export default function Admin({ session }) {
     const fila={}
     if (estacionNombre) fila['Estacion']=estacionNombre
     fila['Fecha']=v.fecha
-    fila['Regular (gal)']=v.regular_litros||0; fila['Regular (Q)']=v.regular_ingresos||0
-    fila['Super (gal)']=v.premium_litros||0; fila['Super (Q)']=v.premium_ingresos||0
+    fila['Super (gal)']=v.regular_litros||0; fila['Super (Q)']=v.regular_ingresos||0
+    fila['V-Power (gal)']=v.premium_litros||0; fila['V-Power (Q)']=v.premium_ingresos||0
     fila['Diesel (gal)']=v.diesel_litros||0; fila['Diesel (Q)']=v.diesel_ingresos||0
-    fila['V-Power (gal)']=v.diesel_plus_litros||0; fila['V-Power (Q)']=v.diesel_plus_ingresos||0
+    fila['Regular (gal)']=v.diesel_plus_litros||0; fila['Regular (Q)']=v.diesel_plus_ingresos||0
     fila['Total Q']=totalIngresos
     metodosPago.forEach(m=>{ fila[metodosLabel[m]]=parseFloat(v[m])||0 })
     fila['Total cobros']=totalCobros
@@ -380,7 +380,7 @@ export default function Admin({ session }) {
     }
     if (tipo==='entregas') {
       const { data } = await supabase.from('entregas').select('fecha_entrega,proveedor,total_galones,regular_galones,premium_galones,diesel_galones,diesel_plus_galones,estado,notas').eq('estacion_id',estacion.id).order('fecha_entrega',{ascending:false})
-      descargarCSV((data||[]).map(e=>({Fecha:e.fecha_entrega,Proveedor:e.proveedor,'Regular (gal)':e.regular_galones||0,'Super (gal)':e.premium_galones||0,'Diesel (gal)':e.diesel_galones||0,'V-Power (gal)':e.diesel_plus_galones||0,'Total galones':e.total_galones||0,Estado:e.estado,Notas:e.notas||''})),`entregas_${nombre}_${fecha}.csv`)
+      descargarCSV((data||[]).map(e=>({Fecha:e.fecha_entrega,Proveedor:e.proveedor,'Super (gal)':e.regular_galones||0,'V-Power (gal)':e.premium_galones||0,'Diesel (gal)':e.diesel_galones||0,'Regular (gal)':e.diesel_plus_galones||0,'Total galones':e.total_galones||0,Estado:e.estado,Notas:e.notas||''})),`entregas_${nombre}_${fecha}.csv`)
     }
     if (tipo==='facturas') {
       const { data } = await supabase.from('facturas').select('numero_factura,proveedor,fecha_emision,fecha_vencimiento,monto,estado,notas').eq('estacion_id',estacion.id).order('fecha_emision',{ascending:false})
@@ -407,7 +407,7 @@ export default function Admin({ session }) {
       }
       if (tipo==='entregas') {
         const { data } = await supabase.from('entregas').select('fecha_entrega,proveedor,total_galones,regular_galones,premium_galones,diesel_galones,diesel_plus_galones,estado,notas').eq('estacion_id',est.id).order('fecha_entrega',{ascending:false})
-        ;(data||[]).forEach(e=>todasFilas.push({Estacion:est.nombre,Fecha:e.fecha_entrega,Proveedor:e.proveedor,'Regular (gal)':e.regular_galones||0,'Super (gal)':e.premium_galones||0,'Diesel (gal)':e.diesel_galones||0,'V-Power (gal)':e.diesel_plus_galones||0,'Total galones':e.total_galones||0,Estado:e.estado,Notas:e.notas||''}))
+        ;(data||[]).forEach(e=>todasFilas.push({Estacion:est.nombre,Fecha:e.fecha_entrega,Proveedor:e.proveedor,'Super (gal)':e.regular_galones||0,'V-Power (gal)':e.premium_galones||0,'Diesel (gal)':e.diesel_galones||0,'Regular (gal)':e.diesel_plus_galones||0,'Total galones':e.total_galones||0,Estado:e.estado,Notas:e.notas||''}))
       }
       if (tipo==='facturas') {
         const { data } = await supabase.from('facturas').select('numero_factura,proveedor,fecha_emision,fecha_vencimiento,monto,estado,notas').eq('estacion_id',est.id).order('fecha_emision',{ascending:false})
@@ -477,7 +477,6 @@ export default function Admin({ session }) {
 
       <div className="p-6">
 
-        {/* Vista facturas con PDF */}
         {estacionFacturas && (
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
@@ -534,7 +533,6 @@ export default function Admin({ session }) {
           </div>
         )}
 
-        {/* Vista detalle registros */}
         {vistaDetalle && !estacionFacturas && (
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
@@ -548,10 +546,10 @@ export default function Admin({ session }) {
                   <table className="w-full text-sm">
                     <thead><tr className="border-b border-gray-100">
                       <th className="px-4 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
-                      <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Regular</th>
                       <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Super</th>
-                      <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Diesel</th>
                       <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">V-Power</th>
+                      <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Diesel</th>
+                      <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Regular</th>
                       <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total Q</th>
                       <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Dif.</th>
                       <th className="px-4 py-2.5"></th>
@@ -717,7 +715,6 @@ export default function Admin({ session }) {
               </div>
             </div>
 
-            {/* Resumen ayer */}
             <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Ayer</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="bg-gray-50 rounded-xl p-4">
@@ -742,7 +739,6 @@ export default function Admin({ session }) {
               </div>
             </div>
 
-            {/* Resumen mensual */}
             <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide capitalize">{mesActual}</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               <div className="bg-blue-50 rounded-xl p-4">
@@ -767,7 +763,6 @@ export default function Admin({ session }) {
               </div>
             </div>
 
-            {/* Secciones sin tabs */}
             <div className="flex gap-1 mb-4 border-b border-gray-100 overflow-x-auto">
               {[['ayer','Ventas de ayer'],['mensual','Acumulado mensual'],['tanques','Tanques'],['facturas-pdf','Facturas y PDFs'],['gestionar','Gestionar registros'],['facturas','Facturas pendientes']].map(([key,label]) => (
                 <button key={key} onClick={() => setSeccion(key)}
