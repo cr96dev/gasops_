@@ -116,20 +116,19 @@ export default function WSM({ session }) {
   }
 
   async function recalcular() {
-    setRecalculando(true)
-    const hoy = new Date()
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(hoy)
-      d.setDate(d.getDate() - i)
-      const fecha = d.toISOString().split('T')[0]
-      await supabase.rpc('calcular_wsm', { p_estacion_id: OAKLAND_ID, p_fecha: fecha })
-    }
-    await cargarWSM()
-    setRecalculando(false)
-    setExito('WSM recalculado correctamente')
-    setTimeout(() => setExito(''), 3000)
+  setRecalculando(true)
+  const hoy = new Date()
+  for (let i = 6; i >= 1; i--) {  // empieza en 6, termina en 1 (no calcula hoy)
+    const d = new Date(hoy)
+    d.setDate(d.getDate() - i)
+    const fecha = d.toISOString().split('T')[0]
+    await supabase.rpc('calcular_wsm', { p_estacion_id: OAKLAND_ID, p_fecha: fecha })
   }
-
+  await cargarWSM()
+  setRecalculando(false)
+  setExito('WSM recalculado correctamente')
+  setTimeout(() => setExito(''), 3000)
+}
   async function guardarEntrega(e) {
     e.preventDefault()
     setGuardandoEntrega(true)
