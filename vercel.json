@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/wsm/recalcular",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}
