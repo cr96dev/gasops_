@@ -11,6 +11,7 @@ const ESTACIONES_AUTOMATICAS = [
   '64a4e5c8-781f-4f53-92a4-bb6f6ae387b9',
   'a5bf7621-fa0a-44b2-891c-982446488d53',
   '3ae77767-ffa0-47f7-b391-f787e025d6cf',
+  'cef374e5-139b-4279-a62e-0fe9544c2fa2'
 ]
 
 const tiposTanque = [
