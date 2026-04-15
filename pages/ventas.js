@@ -30,10 +30,19 @@ const metodosPago = [
   { key: 'prueba_surtidor', label: 'Prueba de surtidor' },
 ]
 
-// Estaciones con ventas automáticas (bridge Wayne Fusion)
 const ESTACIONES_AUTOMATICAS = [
   'cef374e5-139b-4279-a62e-0fe9544c2fa2', // SS Brisas
 ]
+
+function getFechaGuatemala() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
+}
+
+function getAyerGuatemala() {
+  const hoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guatemala' }))
+  hoy.setDate(hoy.getDate() - 1)
+  return hoy.toLocaleDateString('en-CA')
+}
 
 export default function Ventas({ session }) {
   const router = useRouter()
@@ -43,7 +52,7 @@ export default function Ventas({ session }) {
   const [registroFecha, setRegistroFecha] = useState(null)
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0])
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(getFechaGuatemala())
   const [completandoCobros, setCompletandoCobros] = useState(false)
   const [form, setForm] = useState({
     regular_litros: '', regular_ingresos: '',
@@ -186,7 +195,8 @@ export default function Ventas({ session }) {
   const diff = diferencia()
   const totalI = totalIngresos()
   const totalM = totalMetodos()
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = getFechaGuatemala()
+  const ayer = getAyerGuatemala()
   const esHoy = fechaSeleccionada === hoy
   const esFuturo = fechaSeleccionada > hoy
   const sinCobros = registroSinCobros(registroFecha)
@@ -201,7 +211,6 @@ export default function Ventas({ session }) {
           <p className="text-sm text-gray-400">{estacion?.nombre}</p>
         </div>
 
-        {/* Selector de fecha */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4">
           <div className="flex items-center gap-4">
             <div className="flex-1">
@@ -216,12 +225,8 @@ export default function Ventas({ session }) {
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${esHoy ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 Hoy
               </button>
-              <button type="button" onClick={() => {
-                const ayer = new Date()
-                ayer.setDate(ayer.getDate() - 1)
-                setFechaSeleccionada(ayer.toISOString().split('T')[0])
-              }}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${!esHoy && fechaSeleccionada === new Date(Date.now() - 86400000).toISOString().split('T')[0] ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              <button type="button" onClick={() => setFechaSeleccionada(ayer)}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${fechaSeleccionada === ayer ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 Ayer
               </button>
             </div>
@@ -238,8 +243,6 @@ export default function Ventas({ session }) {
 
         {esFuturo ? null : registroFecha ? (
           <div className="space-y-4">
-
-            {/* Banner: registro automático sin cobros */}
             {sinCobros && !completandoCobros && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -258,7 +261,6 @@ export default function Ventas({ session }) {
               </div>
             )}
 
-            {/* Banner: registro completo */}
             {!sinCobros && (
               <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
                 <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -273,7 +275,6 @@ export default function Ventas({ session }) {
               </div>
             )}
 
-            {/* Resumen de combustibles */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Combustible vendido</h2>
               <div className="grid grid-cols-3 gap-2 mb-2">
@@ -299,7 +300,6 @@ export default function Ventas({ session }) {
               </div>
             </div>
 
-            {/* Formulario cobros */}
             {completandoCobros && (
               <form onSubmit={guardarCobros} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} className="space-y-4">
                 <div className="bg-white rounded-xl border border-gray-100 p-5">
@@ -365,7 +365,6 @@ export default function Ventas({ session }) {
               </form>
             )}
 
-            {/* Formas de cobro ya ingresadas */}
             {!completandoCobros && !sinCobros && (
               <div className="bg-white rounded-xl border border-gray-100 p-5">
                 <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
@@ -412,7 +411,6 @@ export default function Ventas({ session }) {
           </div>
 
         ) : automatica ? (
-          /* Estación automática sin registro aún */
           <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-8 text-center">
             <svg className="w-10 h-10 text-blue-400 mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21a48.309 48.309 0 01-8.135-.687c-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
@@ -422,7 +420,6 @@ export default function Ventas({ session }) {
           </div>
 
         ) : (
-          /* Formulario manual para otras estaciones */
           <form onSubmit={guardar} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Combustible vendido</h2>
@@ -517,7 +514,6 @@ export default function Ventas({ session }) {
           </form>
         )}
 
-        {/* Historial */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mt-6">
           <div className="px-5 py-3 border-b border-gray-100">
             <h2 className="text-sm font-medium text-gray-700">Historial reciente</h2>
