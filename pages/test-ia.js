@@ -34,6 +34,14 @@ export default function TestIA() {
     setLoading(false);
   };
 
+  const renderMarkdown = (text) => {
+    return text
+      .replace(/##\s(.+)/g, "<h3 style='margin:12px 0 4px'>$1</h3>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\|(.+)\|/g, "<span style='display:block;padding:4px 0'>$1</span>")
+      .replace(/\n/g, "<br/>");
+  };
+
   return (
     <div style={{ padding: 24, fontFamily: "sans-serif", maxWidth: 600 }}>
       <h2>🤖 Prueba de IA</h2>
@@ -55,15 +63,27 @@ export default function TestIA() {
       </button>
 
       {error && (
-        <div style={{ marginTop: 16, padding: 16, backgroundColor: "#fff0f0", borderRadius: 8, color: "red" }}>
+        <div style={{
+          marginTop: 16,
+          padding: 16,
+          backgroundColor: "#fff0f0",
+          borderRadius: 8,
+          color: "red"
+        }}>
           <strong>Error:</strong> {error}
         </div>
       )}
 
       {result && (
-        <div style={{ marginTop: 16, padding: 16, backgroundColor: "#f0f7ff", borderRadius: 8 }}>
+        <div style={{
+          marginTop: 16,
+          padding: 16,
+          backgroundColor: "#f0f7ff",
+          borderRadius: 8,
+          lineHeight: 1.6
+        }}>
           <strong>Análisis:</strong>
-          <p style={{ whiteSpace: "pre-wrap" }}>{result}</p>
+          <div dangerouslySetInnerHTML={{ __html: renderMarkdown(result) }} />
         </div>
       )}
     </div>
