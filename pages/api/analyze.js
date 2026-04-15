@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "x-api-key": process.env.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,
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
