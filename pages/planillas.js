@@ -423,6 +423,27 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
 
   return (
     <div className="p-6 max-w-7xl">
+      {/* Modales usuario maestro */}
+      {modalAccion === 'eliminar' && (
+        <ModalConfirmar
+          titulo="Eliminar planilla"
+          mensaje={`¿Eliminar "${planilla.periodo}" con todas sus líneas? Esta acción no se puede deshacer.`}
+          labelConfirmar="Sí, eliminar"
+          colorConfirmar="bg-red-600 hover:bg-red-700"
+          onConfirmar={eliminarPlanilla}
+          onCancelar={() => setModalAccion(null)}
+        />
+      )}
+      {modalAccion === 'rechazar' && (
+        <ModalConfirmar
+          titulo="Rechazar planilla"
+          mensaje={`¿Rechazar "${planilla.periodo}"? Volverá a estado Borrador y quedará registrado en auditoría.`}
+          labelConfirmar="Sí, rechazar"
+          colorConfirmar="bg-amber-600 hover:bg-amber-700"
+          onConfirmar={rechazarPlanilla}
+          onCancelar={() => setModalAccion(null)}
+        />
+      )}
       <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
           <button onClick={onVolver} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-2">
@@ -437,6 +458,25 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
           {esBorrador&&lineas.length>0 && <button onClick={()=>cambiarEstado('revision')} disabled={aprobando} className="text-sm px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">Enviar a revisión</button>}
           {esRevision && <button onClick={()=>cambiarEstado('aprobada')} disabled={aprobando} className="text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">Aprobar planilla</button>}
           {esAprobada && <button onClick={()=>cambiarEstado('pagada')} disabled={aprobando} className="text-sm px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">Marcar como pagada</button>}
+          {/* Botones exclusivos usuario maestro */}
+          {esMaestro && planilla.estado !== 'borrador' && (
+            <button onClick={() => setModalAccion('rechazar')}
+              className="text-sm px-3 py-2 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+              </svg>
+              Rechazar
+            </button>
+          )}
+          {esMaestro && (
+            <button onClick={() => setModalAccion('eliminar')}
+              className="text-sm px-3 py-2 border border-red-200 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+              </svg>
+              Eliminar
+            </button>
+          )}
         </div>
       </div>
 
