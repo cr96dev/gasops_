@@ -9,7 +9,9 @@ export default async function handler(req, res) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
-      return res.status(500).json({ analysis: "Error: API key no configurada" });
+      return res.status(500).json({ 
+        analysis: `Error: API key no configurada. Env: ${JSON.stringify(Object.keys(process.env).filter(k => k.includes('ANTHRO')))}` 
+      });
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -44,4 +46,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ analysis: `Error servidor: ${err.message}` });
   }
 }
-
