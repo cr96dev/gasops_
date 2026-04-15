@@ -7,6 +7,43 @@ import * as XLSX from 'xlsx'
 
 const fmt = n => 'Q' + Number(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const round = n => Math.round((n + Number.EPSILON) * 100) / 100
+const IGSS_EMP = 0.0483
+// IGSS se calcula sobre sueldo ordinario + extras + comisiones + otros ingresos
+const calcIgss = l => round((parseFloat(l.salario_quincenal)||0 + parseFloat(l.horas_extra)||0 + parseFloat(l.comisiones)||0 + parseFloat(l.otros_ingresos)||0) * IGSS_EMP)
+
+function ModalConfirmar({ titulo, mensaje, labelConfirmar, colorConfirmar = 'bg-red-600 hover:bg-red-700', onConfirmar, onCancelar }) {
+  const [procesando, setProcesando] = useState(false)
+  async function handleConfirmar() {
+    setProcesando(true)
+    await onConfirmar()
+    setProcesando(false)
+  }
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onCancelar}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="px-6 pt-6 pb-4">
+          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-base font-semibold text-gray-900 text-center mb-1">{titulo}</h2>
+          <p className="text-sm text-gray-500 text-center">{mensaje}</p>
+        </div>
+        <div className="flex gap-2 px-6 pb-6">
+          <button onClick={onCancelar} className="flex-1 text-sm py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
+            Cancelar
+          </button>
+          <button onClick={handleConfirmar} disabled={procesando}
+            className={`flex-1 text-sm py-2 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 ${colorConfirmar}`}>
+            {procesando && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            {procesando ? 'Procesando...' : labelConfirmar}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const ESTADO_LABELS = {
   borrador:  { label: 'Borrador',    bg: 'bg-gray-100',   text: 'text-gray-600' },
@@ -187,7 +224,8 @@ function ModalEmpleado({ empleado, onClose, onGuardado }) {
 
 function FilaEdicion({ linea, onGuardar, onCancelar, onChange }) {
   const sal = parseFloat(linea.salario_quincenal)||0, ext=parseFloat(linea.horas_extra)||0, com=parseFloat(linea.comisiones)||0
-  const desc=parseFloat(linea.otros_descuentos)||0, prest=parseFloat(linea.prestamo_anticipo)||0, igss=parseFloat(linea.igss_empleado)||0
+  const otros=parseFloat(linea.otros_ingresos)||0, desc=parseFloat(linea.otros_descuentos)||0, prest=parseFloat(linea.prestamo_anticipo)||0
+  const igss = round((sal + ext + com + otros) * IGSS_EMP)  // IGSS sobre base imponible real
   return (
     <tr className="border-b border-blue-100 bg-blue-50/30">
       <td className="px-4 py-2" colSpan={2}>
@@ -199,10 +237,11 @@ function FilaEdicion({ linea, onGuardar, onCancelar, onChange }) {
       <td className="px-2 py-2 text-right text-xs text-gray-500">{fmt(sal)}</td>
       <td className="px-2 py-2"><input type="number" step="0.01" value={linea.horas_extra||''} placeholder="0" onChange={e=>onChange(l=>({...l,horas_extra:e.target.value}))} className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:border-blue-400" /></td>
       <td className="px-2 py-2"><input type="number" step="0.01" value={linea.comisiones||''} placeholder="0" onChange={e=>onChange(l=>({...l,comisiones:e.target.value}))} className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:border-blue-400" /></td>
+      <td className="px-2 py-2"><input type="number" step="0.01" value={linea.otros_ingresos||''} placeholder="0" onChange={e=>onChange(l=>({...l,otros_ingresos:e.target.value}))} className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:border-blue-400" /></td>
       <td className="px-2 py-2 text-right text-xs text-purple-600">{fmt(igss)}</td>
       <td className="px-2 py-2"><input type="number" step="0.01" value={linea.otros_descuentos||''} placeholder="0" onChange={e=>onChange(l=>({...l,otros_descuentos:e.target.value}))} className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:border-blue-400" /></td>
       <td className="px-2 py-2"><input type="number" step="0.01" value={linea.prestamo_anticipo||''} placeholder="0" onChange={e=>onChange(l=>({...l,prestamo_anticipo:e.target.value}))} className="w-20 border border-gray-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:border-blue-400" /></td>
-      <td className="px-3 py-2 text-right text-sm font-bold text-blue-700">{fmt(round(sal+ext+com-igss-desc-prest))}</td>
+      <td className="px-3 py-2 text-right text-sm font-bold text-blue-700">{fmt(round(sal+ext+com+otros-igss-desc-prest))}</td>
       <td className="px-3 py-2"><div className="flex gap-2"><button onClick={()=>onGuardar(linea)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Guardar</button><button onClick={onCancelar} className="text-xs text-gray-400 hover:text-gray-600">✕</button></div></td>
     </tr>
   )
@@ -215,6 +254,8 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
   const [aprobando, setAprobando] = useState(false)
   const [filtroEst, setFiltroEst] = useState('todas')
   const [filtroPago, setFiltroPago] = useState('todos')
+  const [modalAccion, setModalAccion] = useState(null) // 'eliminar' | 'rechazar'
+  const esMaestro = session.user.id === USUARIO_MAESTRO
 
   useEffect(() => { cargarLineas() }, [planilla.id])
 
@@ -250,8 +291,11 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
   }
 
   async function guardarLinea(linea) {
+    const igssRecalculado = round((parseFloat(linea.salario_quincenal)||0 + parseFloat(linea.horas_extra)||0 + parseFloat(linea.comisiones)||0 + parseFloat(linea.otros_ingresos)||0) * IGSS_EMP)
     const { error } = await supabase.from('planilla_lineas').update({
       horas_extra: parseFloat(linea.horas_extra)||0, comisiones: parseFloat(linea.comisiones)||0,
+      otros_ingresos: parseFloat(linea.otros_ingresos)||0,
+      igss_empleado: igssRecalculado,
       otros_descuentos: parseFloat(linea.otros_descuentos)||0, prestamo_anticipo: parseFloat(linea.prestamo_anticipo)||0,
       embargo_deuda: parseFloat(linea.embargo_deuda)||0, concepto: linea.concepto,
     }).eq('id', linea.id)
@@ -261,11 +305,14 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
   async function recalcularTotales() {
     const { data: ls } = await supabase.from('planilla_lineas').select('*').eq('planilla_id', planilla.id)
     if (!ls) return
-    const liq = l => round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)-(parseFloat(l.igss_empleado)||0)-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0)-(parseFloat(l.embargo_deuda)||0)-(parseFloat(l.faltante_inventario)||0)-(parseFloat(l.faltante_efectivo)||0))
+    const liq = l => {
+      const igss = round((parseFloat(l.salario_quincenal)||0 + parseFloat(l.horas_extra)||0 + parseFloat(l.comisiones)||0 + parseFloat(l.otros_ingresos)||0) * IGSS_EMP)
+      return round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)-igss-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0)-(parseFloat(l.embargo_deuda)||0)-(parseFloat(l.faltante_inventario)||0)-(parseFloat(l.faltante_efectivo)||0))
+    }
     await supabase.from('planillas').update({
       total_bruto:          round(ls.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0)),
-      total_igss_empleados: round(ls.reduce((s,l)=>s+(parseFloat(l.igss_empleado)||0),0)),
-      total_adiciones:      round(ls.reduce((s,l)=>s+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0),0)),
+      total_igss_empleados: round(ls.reduce((s,l)=>s+round((parseFloat(l.salario_quincenal)||0+parseFloat(l.horas_extra)||0+parseFloat(l.comisiones)||0+parseFloat(l.otros_ingresos)||0)*IGSS_EMP),0)),
+      total_adiciones:      round(ls.reduce((s,l)=>s+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0),0)),
       total_descuentos:     round(ls.reduce((s,l)=>s+(parseFloat(l.otros_descuentos)||0)+(parseFloat(l.prestamo_anticipo)||0)+(parseFloat(l.embargo_deuda)||0),0)),
       total_liquido:        round(ls.reduce((s,l)=>s+liq(l),0)),
       total_costo_patronal: round(ls.reduce((s,l)=>s+(parseFloat(l.costo_patronal_total)||0),0)),
@@ -282,17 +329,90 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
     onVolver(); setAprobando(false)
   }
 
+  async function eliminarPlanilla() {
+    await supabase.from('planilla_lineas').delete().eq('planilla_id', planilla.id)
+    await supabase.from('planilla_auditoria').delete().eq('planilla_id', planilla.id)
+    await supabase.from('planillas').delete().eq('id', planilla.id)
+    toast('✓ Planilla eliminada', 'success')
+    onVolver()
+  }
+
+  async function rechazarPlanilla() {
+    await supabase.from('planillas').update({ estado: 'borrador', aprobado_por: null, aprobado_en: null }).eq('id', planilla.id)
+    await supabase.from('planilla_auditoria').insert({ planilla_id: planilla.id, accion: 'rechazada', usuario_id: session.user.id, usuario_email: session.user.email, notas: 'Rechazada por usuario maestro' })
+    toast('Planilla rechazada y devuelta a borrador', 'warning')
+    onVolver()
+  }
+
   function exportarExcel() {
     const wb = XLSX.utils.book_new()
-    const liq = l => round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)-(parseFloat(l.igss_empleado)||0)-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0))
+    const igssL = l => round((parseFloat(l.salario_quincenal)||0+parseFloat(l.horas_extra)||0+parseFloat(l.comisiones)||0+parseFloat(l.otros_ingresos)||0)*IGSS_EMP)
+    const liq = l => round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)-igssL(l)-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0))
     const transf = lineas.filter(l=>l.tipo_pago==='transferencia')
     const cheqs  = lineas.filter(l=>l.tipo_pago==='cheque')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['#','No. Cuenta','Nombre','Monto','Concepto'],...transf.map(l=>[1,l.numero_cuenta||'',l.nombre,liq(l),l.concepto]),['','','',transf.reduce((s,l)=>s+liq(l),0),'']]), 'Transferencias')
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Nombre','Monto','Descripción','','Estación','No.'],...cheqs.map(l=>[l.nombre,liq(l),l.concepto,'Cheque',l.departamento,l.numero_cheque||'']),['',cheqs.reduce((s,l)=>s+liq(l),0),'','','','']]), 'Cheques')
+
+    // Hoja Transferencias — estructura para carga bancaria BI
+    const dataT = [
+      ['Empleado', 'Estación', 'Tipo', 'No. Cuenta', 'Sal. Quincenal', 'Extras', 'Comisiones', 'Otros Ingresos', 'IGSS Emp. (4.83%)', 'Descuentos', 'Préstamo', 'LÍQUIDO A PAGAR', 'Concepto'],
+      ...transf.map(l => [
+        l.nombre, l.departamento, 'BI', l.numero_cuenta||'',
+        parseFloat(l.salario_quincenal)||0,
+        parseFloat(l.horas_extra)||0,
+        parseFloat(l.comisiones)||0,
+        parseFloat(l.otros_ingresos)||0,
+        igssL(l),
+        parseFloat(l.otros_descuentos)||0,
+        parseFloat(l.prestamo_anticipo)||0,
+        liq(l), l.concepto||planilla.periodo
+      ]),
+      ['', '', '', 'TOTAL', transf.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0), '', '', '', transf.reduce((s,l)=>s+igssL(l),0), '', '', transf.reduce((s,l)=>s+liq(l),0), ''],
+    ]
+    const wsT = XLSX.utils.aoa_to_sheet(dataT)
+    wsT['!cols'] = [40,20,8,16,14,12,12,14,16,12,12,16,30].map(w=>({wch:w}))
+    XLSX.utils.book_append_sheet(wb, wsT, 'Transferencias')
+
+    // Hoja Cheques — agrupado por estación
+    const dataC = [
+      ['Empleado', 'Estación', 'Tipo', 'No. Cheque', 'Sal. Quincenal', 'Extras', 'Comisiones', 'Otros Ingresos', 'IGSS Emp. (4.83%)', 'Descuentos', 'Préstamo', 'LÍQUIDO A PAGAR', 'Concepto'],
+      ...cheqs.map(l => [
+        l.nombre, l.departamento, 'Cheque', l.numero_cheque||'',
+        parseFloat(l.salario_quincenal)||0,
+        parseFloat(l.horas_extra)||0,
+        parseFloat(l.comisiones)||0,
+        parseFloat(l.otros_ingresos)||0,
+        igssL(l),
+        parseFloat(l.otros_descuentos)||0,
+        parseFloat(l.prestamo_anticipo)||0,
+        liq(l), l.concepto||planilla.periodo
+      ]),
+      ['', '', '', 'TOTAL', cheqs.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0), '', '', '', cheqs.reduce((s,l)=>s+igssL(l),0), '', '', cheqs.reduce((s,l)=>s+liq(l),0), ''],
+    ]
+    const wsC = XLSX.utils.aoa_to_sheet(dataC)
+    wsC['!cols'] = [40,20,8,10,14,12,12,14,16,12,12,16,30].map(w=>({wch:w}))
+    XLSX.utils.book_append_sheet(wb, wsC, 'Cheques')
+
+    // Hoja Resumen
+    const dataR = [
+      ['RESUMEN — ' + planilla.periodo],
+      [],
+      ['Concepto', 'Transferencias BI', 'Cheques', 'TOTAL'],
+      ['Empleados', transf.length, cheqs.length, lineas.length],
+      ['Salario quincenal bruto', transf.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0), cheqs.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0), lineas.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0)],
+      ['Extras / Comisiones / Otros', transf.reduce((s,l)=>s+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0),0), cheqs.reduce((s,l)=>s+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0),0), lineas.reduce((s,l)=>s+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0),0)],
+      ['IGSS empleados (4.83% base imponible)', transf.reduce((s,l)=>s+igssL(l),0), cheqs.reduce((s,l)=>s+igssL(l),0), lineas.reduce((s,l)=>s+igssL(l),0)],
+      ['Descuentos / Préstamos', transf.reduce((s,l)=>s+(parseFloat(l.otros_descuentos)||0)+(parseFloat(l.prestamo_anticipo)||0),0), cheqs.reduce((s,l)=>s+(parseFloat(l.otros_descuentos)||0)+(parseFloat(l.prestamo_anticipo)||0),0), lineas.reduce((s,l)=>s+(parseFloat(l.otros_descuentos)||0)+(parseFloat(l.prestamo_anticipo)||0),0)],
+      ['LÍQUIDO TOTAL', transf.reduce((s,l)=>s+liq(l),0), cheqs.reduce((s,l)=>s+liq(l),0), lineas.reduce((s,l)=>s+liq(l),0)],
+    ]
+    const wsR = XLSX.utils.aoa_to_sheet(dataR)
+    wsR['!cols'] = [{wch:40},{wch:20},{wch:20},{wch:20}]
+    XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
+
     XLSX.writeFile(wb, `Planilla_${planilla.periodo.replace(/ /g,'_')}.xlsx`)
   }
 
-  const liqLinea = l => round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)-(parseFloat(l.igss_empleado)||0)-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0)-(parseFloat(l.embargo_deuda)||0))
+  // IGSS dinámico sobre base imponible real (sal + extras + comisiones + otros)
+  const igssLinea = l => round((parseFloat(l.salario_quincenal)||0+parseFloat(l.horas_extra)||0+parseFloat(l.comisiones)||0+parseFloat(l.otros_ingresos)||0)*IGSS_EMP)
+  const liqLinea = l => round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)-igssLinea(l)-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0)-(parseFloat(l.embargo_deuda)||0))
   const estaciones = [...new Set(lineas.map(l=>l.departamento).filter(Boolean))].sort()
   const filtradas = lineas.filter(l => (filtroEst==='todas'||l.departamento===filtroEst) && (filtroPago==='todos'||l.tipo_pago===filtroPago))
   const totalBruto = lineas.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0)
@@ -369,6 +489,7 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
                   <th className="px-2 py-2.5 text-right text-xs text-gray-400 font-normal">Sal. quinc.</th>
                   <th className="px-2 py-2.5 text-right text-xs text-gray-400 font-normal">Extras</th>
                   <th className="px-2 py-2.5 text-right text-xs text-gray-400 font-normal">Comis.</th>
+                  <th className="px-2 py-2.5 text-right text-xs text-gray-400 font-normal">Otros ing.</th>
                   <th className="px-2 py-2.5 text-right text-xs text-gray-400 font-normal">IGSS</th>
                   <th className="px-2 py-2.5 text-right text-xs text-gray-400 font-normal">Desc.</th>
                   <th className="px-2 py-2.5 text-right text-xs text-gray-400 font-normal">Préstamo</th>
@@ -391,7 +512,8 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
                       <td className="px-2 py-2.5 text-right text-xs text-gray-600">{fmt(linea.salario_quincenal)}</td>
                       <td className="px-2 py-2.5 text-right text-xs text-teal-600">{parseFloat(linea.horas_extra)>0?fmt(linea.horas_extra):'—'}</td>
                       <td className="px-2 py-2.5 text-right text-xs text-teal-600">{parseFloat(linea.comisiones)>0?fmt(linea.comisiones):'—'}</td>
-                      <td className="px-2 py-2.5 text-right text-xs text-purple-600">{fmt(linea.igss_empleado)}</td>
+                      <td className="px-2 py-2.5 text-right text-xs text-teal-600">{parseFloat(linea.otros_ingresos)>0?fmt(linea.otros_ingresos):'—'}</td>
+                      <td className="px-2 py-2.5 text-right text-xs text-purple-600">{fmt(igssLinea(linea))}</td>
                       <td className="px-2 py-2.5 text-right text-xs text-red-500">{parseFloat(linea.otros_descuentos)>0?fmt(linea.otros_descuentos):'—'}</td>
                       <td className="px-2 py-2.5 text-right text-xs text-red-500">{parseFloat(linea.prestamo_anticipo)>0?fmt(linea.prestamo_anticipo):'—'}</td>
                       <td className="px-3 py-2.5 text-right text-xs font-bold text-gray-900">{fmt(liq)}</td>
@@ -404,7 +526,8 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
                   <td className="px-2 py-3 text-right text-xs font-bold">{fmt(filtradas.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0))}</td>
                   <td className="px-2 py-3 text-right text-xs font-bold text-teal-600">{fmt(filtradas.reduce((s,l)=>s+(parseFloat(l.horas_extra)||0),0))}</td>
                   <td className="px-2 py-3 text-right text-xs font-bold text-teal-600">{fmt(filtradas.reduce((s,l)=>s+(parseFloat(l.comisiones)||0),0))}</td>
-                  <td className="px-2 py-3 text-right text-xs font-bold text-purple-600">{fmt(filtradas.reduce((s,l)=>s+(parseFloat(l.igss_empleado)||0),0))}</td>
+                  <td className="px-2 py-3 text-right text-xs font-bold text-teal-600">{fmt(filtradas.reduce((s,l)=>s+(parseFloat(l.otros_ingresos)||0),0))}</td>
+                  <td className="px-2 py-3 text-right text-xs font-bold text-purple-600">{fmt(filtradas.reduce((s,l)=>s+igssLinea(l),0))}</td>
                   <td className="px-2 py-3 text-right text-xs font-bold text-red-500">{fmt(filtradas.reduce((s,l)=>s+(parseFloat(l.otros_descuentos)||0),0))}</td>
                   <td className="px-2 py-3 text-right text-xs font-bold text-red-500">{fmt(filtradas.reduce((s,l)=>s+(parseFloat(l.prestamo_anticipo)||0),0))}</td>
                   <td className="px-3 py-3 text-right text-sm font-bold text-blue-700">{fmt(filtradas.reduce((s,l)=>s+liqLinea(l),0))}</td>
