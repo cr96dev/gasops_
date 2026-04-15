@@ -1,23 +1,33 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end();
-
-  const { data, prompt } = req.body;
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
+    const { data, prompt } = req.body;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ analysis: "Error: API key no configurada" });
+    }
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": process.env.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,
+        "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: `Eres un analista de datos experto en sistemas de bombeo y agua.\n${prompt}\n\nDatos:\n${JSON.stringify(data, null, 2)}`
-        }]
+        messages: [
+          {
+            role: "user",
+            content: `Eres un analista de datos experto.\n${prompt}\n\nDatos:\n${JSON.stringify(data, null, 2)}`
+          }
+        ]
       }),
     });
 
@@ -27,9 +37,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ analysis: `Error API: ${result.error.message}` });
     }
 
-    res.status(200).json({ analysis: result.content?.[0]?.text ?? "Sin respuesta" });
+    const text = result.content?.[0]?.text ?? "Sin respuesta";
+    return res.status(200).json({ analysis: text });
 
-  } catch (error) {
-    res.status(500).json({ analysis: `Error servidor: ${error.message}` });
+  } catch (err) {
+    return res.status(500).json({ analysis: `Error servidor: ${err.message}` });
   }
 }
+
