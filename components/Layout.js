@@ -19,6 +19,7 @@ const adminItems = [
   { href: '/facturas-fel', label: 'Facturas FEL',  icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { href: '/tienda',       label: 'Tienda',        icon: 'M3 3h18v4H3V3zm0 6h18v12H3V9zm4 2v8h2v-8H7zm4 0v8h2v-8h-2zm4 0v8h2v-8h-2z' },
   { href: '/planillas',    label: 'Planillas',     icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+  { href: '/igss',         label: 'IGSS',          icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
 ]
 
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
