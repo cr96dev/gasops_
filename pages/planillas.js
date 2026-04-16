@@ -3,15 +3,16 @@ import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
-import * as XLSX from 'xlsx'
 
 const fmt = n => 'Q' + Number(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const round = n => Math.round((n + Number.EPSILON) * 100) / 100
 const IGSS_EMP = 0.0483
+const USUARIO_MAESTRO = 'b894bae5-09eb-4ff5-8b59-0f4a9cce05fc'
 // IGSS se calcula sobre sueldo ordinario + extras + comisiones + otros ingresos
-const calcIgss = l => round((parseFloat(l.salario_quincenal)||0 + parseFloat(l.horas_extra)||0 + parseFloat(l.comisiones)||0 + parseFloat(l.otros_ingresos)||0) * IGSS_EMP)
+const calcIgss = l => round(((parseFloat(l.salario_quincenal)||0)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)) * IGSS_EMP)
 
-function ModalConfirmar({ titulo, mensaje, labelConfirmar, colorConfirmar = 'bg-red-600 hover:bg-red-700', onConfirmar, onCancelar }) {
+function ModalConfirmar({ titulo, mensaje, labelConfirmar, colorConfirmar, onConfirmar, onCancelar }) {
+  const btnColor = colorConfirmar || 'bg-red-600 hover:bg-red-700'
   const [procesando, setProcesando] = useState(false)
   async function handleConfirmar() {
     setProcesando(true)
@@ -35,7 +36,7 @@ function ModalConfirmar({ titulo, mensaje, labelConfirmar, colorConfirmar = 'bg-
             Cancelar
           </button>
           <button onClick={handleConfirmar} disabled={procesando}
-            className={`flex-1 text-sm py-2 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 ${colorConfirmar}`}>
+            className={`flex-1 text-sm py-2 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 ${btnColor}`}>
             {procesando && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {procesando ? 'Procesando...' : labelConfirmar}
           </button>
@@ -291,7 +292,7 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
   }
 
   async function guardarLinea(linea) {
-    const igssRecalculado = round((parseFloat(linea.salario_quincenal)||0 + parseFloat(linea.horas_extra)||0 + parseFloat(linea.comisiones)||0 + parseFloat(linea.otros_ingresos)||0) * IGSS_EMP)
+    const igssRecalculado = round(((parseFloat(linea.salario_quincenal)||0)+(parseFloat(linea.horas_extra)||0)+(parseFloat(linea.comisiones)||0)+(parseFloat(linea.otros_ingresos)||0)) * IGSS_EMP)
     const { error } = await supabase.from('planilla_lineas').update({
       horas_extra: parseFloat(linea.horas_extra)||0, comisiones: parseFloat(linea.comisiones)||0,
       otros_ingresos: parseFloat(linea.otros_ingresos)||0,
@@ -306,12 +307,12 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
     const { data: ls } = await supabase.from('planilla_lineas').select('*').eq('planilla_id', planilla.id)
     if (!ls) return
     const liq = l => {
-      const igss = round((parseFloat(l.salario_quincenal)||0 + parseFloat(l.horas_extra)||0 + parseFloat(l.comisiones)||0 + parseFloat(l.otros_ingresos)||0) * IGSS_EMP)
+      const igss = round(((parseFloat(l.salario_quincenal)||0)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)) * IGSS_EMP)
       return round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)-igss-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0)-(parseFloat(l.embargo_deuda)||0)-(parseFloat(l.faltante_inventario)||0)-(parseFloat(l.faltante_efectivo)||0))
     }
     await supabase.from('planillas').update({
       total_bruto:          round(ls.reduce((s,l)=>s+(parseFloat(l.salario_quincenal)||0),0)),
-      total_igss_empleados: round(ls.reduce((s,l)=>s+round((parseFloat(l.salario_quincenal)||0+parseFloat(l.horas_extra)||0+parseFloat(l.comisiones)||0+parseFloat(l.otros_ingresos)||0)*IGSS_EMP),0)),
+      total_igss_empleados: round(ls.reduce((s,l)=>s+round(((parseFloat(l.salario_quincenal)||0)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0))*IGSS_EMP),0)),
       total_adiciones:      round(ls.reduce((s,l)=>s+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0),0)),
       total_descuentos:     round(ls.reduce((s,l)=>s+(parseFloat(l.otros_descuentos)||0)+(parseFloat(l.prestamo_anticipo)||0)+(parseFloat(l.embargo_deuda)||0),0)),
       total_liquido:        round(ls.reduce((s,l)=>s+liq(l),0)),
@@ -344,9 +345,10 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
     onVolver()
   }
 
-  function exportarExcel() {
+  async function exportarExcel() {
+    const XLSX = (await import('xlsx')).default || (await import('xlsx'))
     const wb = XLSX.utils.book_new()
-    const igssL = l => round((parseFloat(l.salario_quincenal)||0+parseFloat(l.horas_extra)||0+parseFloat(l.comisiones)||0+parseFloat(l.otros_ingresos)||0)*IGSS_EMP)
+    const igssL = l => round(((parseFloat(l.salario_quincenal)||0)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0))*IGSS_EMP)
     const liq = l => round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)-igssL(l)-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0))
     const transf = lineas.filter(l=>l.tipo_pago==='transferencia')
     const cheqs  = lineas.filter(l=>l.tipo_pago==='cheque')
@@ -411,7 +413,7 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
   }
 
   // IGSS dinámico sobre base imponible real (sal + extras + comisiones + otros)
-  const igssLinea = l => round((parseFloat(l.salario_quincenal)||0+parseFloat(l.horas_extra)||0+parseFloat(l.comisiones)||0+parseFloat(l.otros_ingresos)||0)*IGSS_EMP)
+  const igssLinea = l => round(((parseFloat(l.salario_quincenal)||0)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0))*IGSS_EMP)
   const liqLinea = l => round(parseFloat(l.salario_quincenal)+(parseFloat(l.horas_extra)||0)+(parseFloat(l.comisiones)||0)+(parseFloat(l.otros_ingresos)||0)-igssLinea(l)-(parseFloat(l.otros_descuentos)||0)-(parseFloat(l.prestamo_anticipo)||0)-(parseFloat(l.embargo_deuda)||0))
   const estaciones = [...new Set(lineas.map(l=>l.departamento).filter(Boolean))].sort()
   const filtradas = lineas.filter(l => (filtroEst==='todas'||l.departamento===filtroEst) && (filtroPago==='todos'||l.tipo_pago===filtroPago))
