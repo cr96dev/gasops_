@@ -272,18 +272,27 @@ function VistaDetalle({ planilla, session, onVolver, toast }) {
     if (lineas.length > 0) await supabase.from('planilla_lineas').delete().eq('planilla_id', planilla.id)
     const { data: emps } = await supabase.from('empleados').select('*').eq('activo', true).order('estacion').order('nombre')
     if (!emps?.length) { toast('No hay empleados activos.', 'error'); return }
-    const nuevas = emps.map(e => ({
-      planilla_id: planilla.id, empleado_id: e.id,
-      nombre: e.nombre, departamento: e.estacion || e.departamento, puesto: e.puesto,
-      tipo_pago: e.tipo_pago, banco: e.banco, numero_cuenta: e.numero_cuenta,
-      salario_quincenal: e.salario_quincenal,
-      bono14_quincenal: e.bono14_quincenal, aguinaldo_quincenal: e.aguinaldo_quincenal, vacaciones_quincenal: e.vacaciones_quincenal,
-      horas_extra: 0, comisiones: 0, otros_ingresos: 0,
-      igss_empleado: e.igss_empleado_quincenal,
-      faltante_inventario: 0, faltante_efectivo: 0, prestamo_anticipo: 0, embargo_deuda: 0, otros_descuentos: 0,
-      igss_patronal: e.igss_patronal_mensual, irtra: e.irtra_mensual, intecap: e.intecap_mensual, indemnizacion: e.indemnizacion_mensual,
-      costo_patronal_total: e.costo_patronal_quincenal, concepto: planilla.periodo,
-    }))
+    const nuevas = emps.map(e => {
+      // Bonificación quincenal (Jefes de Pista + Silvia Roldán): aplica siempre
+      const bonifQ = parseFloat(e.bonificacion_quincenal) || 0
+      // Bonificación solo segunda quincena (Administradores): aplica solo si quincena === 2
+      const bonif2da = planilla.quincena === 2 ? (parseFloat(e.bonificacion_segunda_quincena) || 0) : 0
+      const otros_ingresos = bonifQ + bonif2da
+      // IGSS se recalcula sobre base imponible incluyendo bonificaciones
+      const igss = round(((parseFloat(e.salario_quincenal)||0) + otros_ingresos) * IGSS_EMP)
+      return {
+        planilla_id: planilla.id, empleado_id: e.id,
+        nombre: e.nombre, departamento: e.estacion || e.departamento, puesto: e.puesto,
+        tipo_pago: e.tipo_pago, banco: e.banco, numero_cuenta: e.numero_cuenta,
+        salario_quincenal: e.salario_quincenal,
+        bono14_quincenal: e.bono14_quincenal, aguinaldo_quincenal: e.aguinaldo_quincenal, vacaciones_quincenal: e.vacaciones_quincenal,
+        horas_extra: 0, comisiones: 0, otros_ingresos,
+        igss_empleado: igss,
+        faltante_inventario: 0, faltante_efectivo: 0, prestamo_anticipo: 0, embargo_deuda: 0, otros_descuentos: 0,
+        igss_patronal: e.igss_patronal_mensual, irtra: e.irtra_mensual, intecap: e.intecap_mensual, indemnizacion: e.indemnizacion_mensual,
+        costo_patronal_total: e.costo_patronal_quincenal, concepto: planilla.periodo,
+      }
+    })
     const { error } = await supabase.from('planilla_lineas').insert(nuevas)
     if (error) { toast('Error al generar planilla.', 'error'); return }
     await recalcularTotales()
