@@ -23,6 +23,35 @@ function Spinner() {
   return <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
 }
 
+// ── Salarios mínimos históricos CE1 no agrícola (Acuerdos Gubernativos) ──
+const SAL_MIN_HISTORICO = {
+  2024: 3384.59,  // Acuerdo 307-2023 — vigente 1-ene-2024
+  2025: 3473.05,  // Acuerdo 264-2024 — vigente 1-ene-2025
+  2026: 3752.28,  // Acuerdo 256-2025 — vigente 1-ene-2026
+}
+
+function salMinVigente(anio) {
+  return SAL_MIN_HISTORICO[anio] || SAL_MIN_HISTORICO[2026]
+}
+
+// Promedio de los últimos 6 meses según salarios mínimos históricos por período
+function calcularPromedio6Meses(fechaIngreso, fechaBaja, salarioActual) {
+  const esEspecial = salarioActual >= 4500  // admins Q5,000 fijo
+  const baja = new Date(fechaBaja)
+  const salarios = []
+  for (let i = 1; i <= 6; i++) {
+    let m = baja.getMonth() - i
+    let a = baja.getFullYear()
+    while (m < 0) { m += 12; a-- }
+    const inicioMes = new Date(a, m, 1)
+    if (inicioMes >= new Date(fechaIngreso)) {
+      salarios.push(esEspecial ? salarioActual : salMinVigente(a))
+    }
+  }
+  if (salarios.length === 0) return salarioActual
+  return round(salarios.reduce((s, v) => s + v, 0) / salarios.length)
+}
+
 // ── Calcular prestaciones de ley Guatemala ────────────────────────────────
 function calcularLiquidacion({ empleado, fechaBaja, tipoBaja, diasSalarioPendiente = 0, deducciones = 0 }) {
   const sal = parseFloat(empleado.salario_mensual) || 0
@@ -31,64 +60,68 @@ function calcularLiquidacion({ empleado, fechaBaja, tipoBaja, diasSalarioPendien
   const ingreso = new Date(empleado.fecha_ingreso)
   const baja    = new Date(fechaBaja)
 
-  // Tiempo trabajado
   const msTotal   = baja - ingreso
   const diasTotal = Math.floor(msTotal / (1000 * 60 * 60 * 24))
   const aniosTrabajados = diasTotal / 365.25
   const mesesTrabajados = Math.floor(diasTotal / 30.44)
 
+  // Promedio últimos 6 meses con salarios históricos por período
+  const salProm6m = calcularPromedio6Meses(empleado.fecha_ingreso, fechaBaja, sal)
+
   // ── Indemnización (solo despido injustificado) ─────────────────────────
-  // 1 mes de salario por año trabajado, proporcional. Mínimo 1 mes si ≥ 6 meses.
+  // Base: promedio 6 meses × años trabajados
   let indemnizacion = 0
   if (tipoBaja === 'despido_injustificado') {
     if (aniosTrabajados >= 1) {
-      indemnizacion = round(sal * aniosTrabajados)
+      indemnizacion = round(salProm6m * aniosTrabajados)
     } else if (mesesTrabajados >= 6) {
-      indemnizacion = round(sal * (mesesTrabajados / 12))
+      indemnizacion = round(salProm6m * (mesesTrabajados / 12))
     }
   }
 
   // ── Preaviso ───────────────────────────────────────────────────────────
-  // Despido injustificado: 1 mes si > 2 años, proporcional si 6m-2años, 0 si < 6m
-  // Renuncia voluntaria: empleado debe dar preaviso (lo calculamos para referencia)
   let preaviso = 0
   if (tipoBaja === 'despido_injustificado') {
     if (aniosTrabajados >= 2) {
-      preaviso = sal // 1 mes
+      preaviso = sal
     } else if (mesesTrabajados >= 6) {
-      preaviso = round(sal * (mesesTrabajados / 24)) // proporcional
+      preaviso = round(sal * (mesesTrabajados / 24))
     }
-  } else if (tipoBaja === 'renuncia_voluntaria') {
-    // En renuncia el empleado debería dar preaviso; si no lo dio, se descuenta
-    // Lo dejamos en 0 pero se puede ajustar manualmente
-    preaviso = 0
   }
 
   // ── Vacaciones proporcionales ──────────────────────────────────────────
-  // 15 días hábiles por año trabajado (Código de Trabajo Art. 130)
-  // Proporcional al tiempo: (días_trabajados / 365) × 15 × salario_día
-  // Consideramos año fiscal de vacaciones: del aniversario al día de baja
   const diasVacProporcionales = round((aniosTrabajados % 1) * 15)
   const vacaciones = round(diasVacProporcionales * salDia)
 
-  // ── Aguinaldo proporcional ─────────────────────────────────────────────
-  // Período: 1 diciembre del año anterior al 30 noviembre del año de baja
-  // Monto: 1 salario mensual proporcional al tiempo en el período
-  let inicioAguinaldo = new Date(baja.getFullYear() - 1, 11, 1) // 1-dic año anterior
-  if (baja.getMonth() >= 11) {
-    inicioAguinaldo = new Date(baja.getFullYear(), 11, 1) // 1-dic mismo año
-  }
+  // ── Aguinaldo proporcional — ponderado por salario histórico ───────────
+  const inicioAguinaldo = baja.getMonth() >= 11
+    ? new Date(baja.getFullYear(), 11, 1)
+    : new Date(baja.getFullYear() - 1, 11, 1)
   const diasAguinaldo = Math.max(0, Math.floor((baja - inicioAguinaldo) / (1000*60*60*24)))
-  const aguinaldo = round((diasAguinaldo / 365) * sal)
-
-  // ── Bono 14 proporcional ───────────────────────────────────────────────
-  // Período: 1 julio año anterior al 30 junio del año de baja
-  let inicioBono14 = new Date(baja.getFullYear() - 1, 6, 1) // 1-jul año anterior
-  if (baja.getMonth() >= 6) {
-    inicioBono14 = new Date(baja.getFullYear(), 6, 1) // 1-jul mismo año
+  // Ponderar por año: días en 2024 × sal2024 + días en 2025 × sal2025 + ...
+  let aguinaldo = 0
+  const esEsp = sal >= 4500
+  for (let a = inicioAguinaldo.getFullYear(); a <= baja.getFullYear(); a++) {
+    const iniA = new Date(Math.max(inicioAguinaldo, new Date(a, 0, 1)))
+    const finA = new Date(Math.min(baja, new Date(a, 11, 31)))
+    const dias = Math.max(0, Math.floor((finA - iniA) / (1000*60*60*24)) + 1)
+    aguinaldo += round(dias / 365 * (esEsp ? sal : salMinVigente(a)))
   }
+  aguinaldo = round(aguinaldo)
+
+  // ── Bono 14 proporcional — ponderado por salario histórico ─────────────
+  const inicioBono14 = baja.getMonth() >= 6
+    ? new Date(baja.getFullYear(), 6, 1)
+    : new Date(baja.getFullYear() - 1, 6, 1)
   const diasBono14 = Math.max(0, Math.floor((baja - inicioBono14) / (1000*60*60*24)))
-  const bono14 = round((diasBono14 / 365) * sal)
+  let bono14 = 0
+  for (let a = inicioBono14.getFullYear(); a <= baja.getFullYear(); a++) {
+    const iniA = new Date(Math.max(inicioBono14, new Date(a, 0, 1)))
+    const finA = new Date(Math.min(baja, new Date(a, 11, 31)))
+    const dias = Math.max(0, Math.floor((finA - iniA) / (1000*60*60*24)) + 1)
+    bono14 += round(dias / 365 * (esEsp ? sal : salMinVigente(a)))
+  }
+  bono14 = round(bono14)
 
   // ── Salario pendiente ──────────────────────────────────────────────────
   const salarioPendiente = round(diasSalarioPendiente * salDia)
@@ -101,6 +134,7 @@ function calcularLiquidacion({ empleado, fechaBaja, tipoBaja, diasSalarioPendien
     aniosTrabajados: round(aniosTrabajados),
     mesesTrabajados,
     diasTrabajados: diasTotal,
+    salProm6m,
     indemnizacion,
     preaviso,
     vacaciones,
@@ -116,6 +150,7 @@ function calcularLiquidacion({ empleado, fechaBaja, tipoBaja, diasSalarioPendien
     totalNeto,
   }
 }
+
 
 // ── Modal: Nueva liquidación ──────────────────────────────────────────────
 function ModalLiquidacion({ empleado, onClose, onGuardado, session }) {
@@ -246,7 +281,7 @@ function ModalLiquidacion({ empleado, onClose, onGuardado, session }) {
             </div>
             <div className="divide-y divide-gray-50">
               {[
-                { label: `Indemnización ${tipoBaja==='despido_injustificado'?'(1 mes/año)':'— No aplica'}`, val: calc.indemnizacion, nota: tipoBaja==='despido_injustificado'?`${calc.aniosTrabajados.toFixed(2)} años × ${fmt(sal)}`:null, aplica: tipoBaja==='despido_injustificado' },
+                { label: `Indemnización ${tipoBaja==='despido_injustificado'?'(prom. 6m × años)':'— No aplica'}`, val: calc.indemnizacion, nota: tipoBaja==='despido_injustificado'?`Prom. 6 meses: ${fmt(calc.salProm6m)} × ${calc.aniosTrabajados.toFixed(2)} años`:null, aplica: tipoBaja==='despido_injustificado' },
                 { label: `Preaviso ${tipoBaja==='despido_injustificado'?'(1 mes)':'— No aplica'}`, val: calc.preaviso, aplica: tipoBaja==='despido_injustificado' },
                 { label: `Vacaciones proporcionales`, val: calc.vacaciones, nota: `${calc.diasVacProporcionales} días × ${fmt(sal/30)}/día` },
                 { label: `Aguinaldo proporcional`, val: calc.aguinaldo, nota: `${calc.diasAguinaldo} días del período` },
