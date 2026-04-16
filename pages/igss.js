@@ -202,14 +202,12 @@ function generarTXT(mes, anio, planillas, empleados) {
   lines.push('[Empleados]')
 
   empleados.forEach(e => {
+    // sal_mensual_igss ya tiene descontada la bonif. incentivo exenta
     const salQ = round((parseFloat(e.sal_mensual_igss)||0) / 2)
     const cuotaLabQ = round(salQ * LABORAL)
-    // Dividir nombre en partes
     const partes = e.nombre.replace(/,/g,' ').trim().split(/\s+/).filter(Boolean)
-    const a1 = partes[0] || ''
-    const a2 = partes[1] || ''
-    const n1 = partes[2] || ''
-    const n2 = partes[3] || ''
+    const a1 = partes[0] || '', a2 = partes[1] || ''
+    const n1 = partes[2] || '', n2 = partes[3] || ''
     const igssNum = e.numero_igss || ''
     for (const liq of ['1','2']) {
       lines.push(`${liq}|${igssNum}|${a1}|${a2}|${n1}|${n2}||${salQ}|${fechaIni}||1|${NIT_PATRONO}|0|P|${cuotaLabQ}|N|0|TC|15`)
@@ -232,25 +230,38 @@ export default function IGSS({ session }) {
   })
   const [planillas, setPlanillas] = useState([])
   const [empleados, setEmpleados] = useState([])
+  const [lineasMes, setLineasMes] = useState([])
   const [generando, setGenerando] = useState(false)
   const { toasts, toast } = useToast()
 
   useEffect(() => { if (!session) { router.push('/'); return }; init() }, [session])
-  useEffect(() => { if (!loading) cargarPlanillas() }, [mesSeleccionado])
+  useEffect(() => { if (!loading) cargarDatosMes() }, [mesSeleccionado])
 
   async function init() {
     const { data: p } = await supabase.from('perfiles').select('*, estaciones(*)').eq('id', session.user.id).single()
     if (p?.rol !== 'admin') { router.push('/dashboard'); return }
     setPerfil(p); setEstacion(p?.estaciones)
-    await Promise.all([cargarPlanillas(), cargarEmpleados()])
+    await Promise.all([cargarDatosMes(), cargarEmpleados()])
     setLoading(false)
   }
 
-  async function cargarPlanillas() {
-    const { data } = await supabase.from('planillas').select('*')
+  async function cargarDatosMes() {
+    // Cargar planillas del mes
+    const { data: plans } = await supabase.from('planillas').select('*')
       .eq('mes', mesSeleccionado.mes).eq('anio', mesSeleccionado.anio)
       .order('quincena')
-    setPlanillas(data || [])
+    setPlanillas(plans || [])
+
+    // Cargar líneas de todas las planillas del mes
+    if (plans && plans.length > 0) {
+      const ids = plans.map(p => p.id)
+      const { data: lineas } = await supabase.from('planilla_lineas')
+        .select('*, empleados(numero_igss, estacion, salario_mensual, bonificacion_quincenal, bonificacion_segunda_quincena)')
+        .in('planilla_id', ids)
+      setLineasMes(lineas || [])
+    } else {
+      setLineasMes([])
+    }
   }
 
   async function cargarEmpleados() {
@@ -258,17 +269,56 @@ export default function IGSS({ session }) {
     setEmpleados(data || [])
   }
 
-  // Calcular base imponible mensual por empleado
-  // = salario_mensual + bonificacion_quincenal*2 (jefes/Silvia)
-  // La bonif de admins (2da quincena) también suma en el mes
-  const empConBase = empleados.map(e => ({
-    ...e,
-    sal_mensual_igss: round(
-      (parseFloat(e.salario_mensual)||0) +
-      (parseFloat(e.bonificacion_quincenal)||0) * 2 +
-      (parseFloat(e.bonificacion_segunda_quincena)||0)
-    )
-  }))
+  // ── Base imponible IGSS por empleado desde planilla_lineas ─────────────
+  // Agrupar líneas por empleado_id (suma 1ra + 2da quincena)
+  // Base imponible = salario_quincenal*2 + horas_extra + comisiones + otros_ingresos
+  //                  - bonificacion_incentivo_ley (Q250/mes, exenta IGSS Decreto 37-2001)
+  // NOTA: otros_ingresos YA incluye bonificaciones de puesto (Q200 jefes, Q1750 admins)
+  //       que SÍ afectan IGSS — solo excluimos la bonif. incentivo de Q250
+  const BONIF_INCENTIVO_EXENTA = 250.00
+
+  const empConBase = (() => {
+    if (lineasMes.length === 0) {
+      // Sin planillas del mes — usar catálogo de empleados como fallback
+      return empleados.map(e => ({
+        ...e,
+        sal_mensual_igss: round(
+          (parseFloat(e.salario_mensual)||0) +
+          (parseFloat(e.bonificacion_quincenal)||0) * 2 +
+          (parseFloat(e.bonificacion_segunda_quincena)||0)
+        ),
+        fuente: 'catalogo'
+      }))
+    }
+
+    // Agrupar por empleado_id o nombre (para los 6 sin empleado_id)
+    const mapa = {}
+    lineasMes.forEach(l => {
+      const key = l.empleado_id || l.nombre
+      if (!mapa[key]) {
+        mapa[key] = {
+          id: l.empleado_id,
+          nombre: l.nombre,
+          puesto: l.puesto,
+          estacion: l.departamento,
+          numero_igss: l.empleados?.numero_igss || '',
+          devengado: 0,
+          fuente: 'planilla'
+        }
+      }
+      // Sumar devengado de cada quincena (salario + extras + comisiones + otros_ingresos)
+      mapa[key].devengado += (parseFloat(l.salario_quincenal)||0)
+                           + (parseFloat(l.horas_extra)||0)
+                           + (parseFloat(l.comisiones)||0)
+                           + (parseFloat(l.otros_ingresos)||0)
+    })
+
+    return Object.values(mapa).map(e => ({
+      ...e,
+      // Restar bonificación incentivo de ley (Q250/mes exenta IGSS)
+      sal_mensual_igss: round(Math.max(0, e.devengado - BONIF_INCENTIVO_EXENTA))
+    }))
+  })()
 
   // Totales del mes
   const totalSalarios  = empConBase.reduce((s,e) => s + (parseFloat(e.sal_mensual_igss)||0), 0)
@@ -346,6 +396,14 @@ export default function IGSS({ session }) {
           <div>
             <h1 className="text-lg font-semibold text-gray-900">Planilla IGSS</h1>
             <p className="text-sm text-gray-400">Número patronal {NUM_PATRONAL} · {NOMBRE_PAT}</p>
+            {empConBase.length > 0 && (
+              <p className="text-xs mt-0.5">
+                {lineasMes.length > 0
+                  ? <span className="text-green-600">✓ Calculado desde planillas del mes (base imponible real)</span>
+                  : <span className="text-amber-600">⚠ Sin planillas registradas — usando catálogo de empleados</span>
+                }
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <select
