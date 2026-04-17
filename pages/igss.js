@@ -4,7 +4,7 @@ import { supabase } from ‘../lib/supabase’
 import Layout from ‘../components/Layout’
 import { useToast, ToastContainer } from ‘../components/Toast’
 
-// ── Constantes IGSS ────────────────────────────────────────────────────────
+// – Constantes IGSS ––––––––––––––––––––––––––––
 const PATRONAL   = 0.1067
 const LABORAL    = 0.0483
 const IRTRA      = 0.01
@@ -24,7 +24,7 @@ function Spinner() {
 return <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
 }
 
-// ── Calcular cuotas por empleado ────────────────────────────────────────────
+// – Calcular cuotas por empleado ––––––––––––––––––––––
 function calcularCuotas(salario) {
 const sal = parseFloat(salario) || 0
 return {
@@ -36,7 +36,7 @@ total:    round(sal * (PATRONAL + LABORAL + IRTRA + INTECAP)),
 }
 }
 
-// ── Vista DR-182-1 (mockup del recibo) ─────────────────────────────────────
+// – Vista DR-182-1 (mockup del recibo) ———————————––
 function VistaRecibo({ datos }) {
 const { mes, anio, trabajadores, totalSalarios, cuotas } = datos
 return (
@@ -44,7 +44,7 @@ return (
 {/* Header */}
 <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 text-center">
 <div className="text-sm font-bold text-gray-800">INSTITUTO GUATEMALTECO DE SEGURIDAD SOCIAL</div>
-<div className="text-xs text-gray-600 mt-0.5">RECIBO DE CUOTAS DE PATRONOS Y DE TRABAJADORES — IMPUESTO IRTRA Y TASA INTECAP</div>
+<div className="text-xs text-gray-600 mt-0.5">RECIBO DE CUOTAS DE PATRONOS Y DE TRABAJADORES - IMPUESTO IRTRA Y TASA INTECAP</div>
 <div className="text-xs font-bold text-gray-700 mt-1">DR-182-1</div>
 </div>
 
@@ -52,10 +52,10 @@ return (
   {/* Datos patrono */}
   <div className="px-6 py-4 border-b border-gray-100">
     <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
-      <div className="flex gap-2"><span className="text-gray-500 w-32">05 Número patronal:</span><span className="font-bold">{NUM_PATRONAL}</span></div>
-      <div className="flex gap-2"><span className="text-gray-500 w-32">06 Mes contribución:</span><span className="font-bold">{MESES[mes]}/{anio}</span></div>
+      <div className="flex gap-2"><span className="text-gray-500 w-32">05 Numero patronal:</span><span className="font-bold">{NUM_PATRONAL}</span></div>
+      <div className="flex gap-2"><span className="text-gray-500 w-32">06 Mes contribucion:</span><span className="font-bold">{MESES[mes]}/{anio}</span></div>
       <div className="flex gap-2 col-span-2"><span className="text-gray-500 w-32">07 Nombre patrono:</span><span className="font-bold">{NOMBRE_PAT}</span></div>
-      <div className="flex gap-2 col-span-2"><span className="text-gray-500 w-32">08 Dirección:</span><span>{DIRECCION}</span></div>
+      <div className="flex gap-2 col-span-2"><span className="text-gray-500 w-32">08 Direccion:</span><span>{DIRECCION}</span></div>
       <div className="flex gap-2"><span className="text-gray-500 w-32">09 No. trabajadores:</span><span className="font-bold">{trabajadores}</span></div>
       <div className="flex gap-2"><span className="text-gray-500 w-32">10 Total salarios:</span><span className="font-bold">{fmt(totalSalarios)}</span></div>
     </div>
@@ -103,8 +103,8 @@ return (
 
   {/* Footer */}
   <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 text-center">
-    <div className="text-xs text-gray-500">Fecha de vencimiento: día 20 del mes siguiente</div>
-    <div className="text-xs text-gray-400 mt-0.5">Banco Industrial, S.A. — Agencia Virtual</div>
+    <div className="text-xs text-gray-500">Fecha de vencimiento: dia 20 del mes siguiente</div>
+    <div className="text-xs text-gray-400 mt-0.5">Banco Industrial, S.A. - Agencia Virtual</div>
   </div>
 </div>
 ```
@@ -112,7 +112,7 @@ return (
 )
 }
 
-// ── Tabla de empleados con cuotas ─────────────────────────────────────────
+// – Tabla de empleados con cuotas —————————————–
 function TablaEmpleados({ empleados }) {
 const [busqueda, setBusqueda] = useState(’’)
 const filtrados = empleados.filter(e =>
@@ -123,7 +123,7 @@ return (
 <div>
 <div className="mb-3">
 <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-placeholder=“Buscar empleado o estación…”
+placeholder=“Buscar empleado o estacion…”
 className=“w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400” />
 </div>
 <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
@@ -133,7 +133,7 @@ className=“w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ou
 <tr className="border-b border-gray-100">
 <th className="px-4 py-2.5 text-left text-gray-400 font-normal">Empleado</th>
 <th className="px-3 py-2.5 text-left text-gray-400 font-normal">No. IGSS</th>
-<th className="px-3 py-2.5 text-left text-gray-400 font-normal">Estación</th>
+<th className="px-3 py-2.5 text-left text-gray-400 font-normal">Estacion</th>
 <th className="px-3 py-2.5 text-right text-gray-400 font-normal">Sal. mensual</th>
 <th className="px-3 py-2.5 text-right text-gray-400 font-normal">Cuota patronal</th>
 <th className="px-3 py-2.5 text-right text-gray-400 font-normal">Cuota laboral</th>
@@ -148,7 +148,7 @@ const c = calcularCuotas(e.sal_mensual_igss)
 return (
 <tr key={e.id || i} className=“border-b border-gray-50 hover:bg-gray-50”>
 <td className="px-4 py-2"><div className="font-medium text-gray-800">{e.nombre}</div><div className="text-gray-400">{e.puesto}</div></td>
-<td className="px-3 py-2 text-gray-500">{e.numero_igss || <span className="text-amber-500">—</span>}</td>
+<td className="px-3 py-2 text-gray-500">{e.numero_igss || <span className="text-amber-500">-</span>}</td>
 <td className="px-3 py-2 text-gray-500">{e.estacion}</td>
 <td className="px-3 py-2 text-right font-medium text-gray-800">{fmt(e.sal_mensual_igss)}</td>
 <td className="px-3 py-2 text-right text-blue-600">{fmt(c.patronal)}</td>
@@ -178,13 +178,13 @@ return (
 )
 }
 
-// ── Generar archivo TXT v2.2.0 ─────────────────────────────────────────────
-// Correcciones aplicadas según errores del IGSS:
-// - Fechas quincena 2: siempre 14 días (16 al 29 o ajuste según mes)
+// – Generar archivo TXT v2.2.0 ———————————————
+// Correcciones aplicadas segun errores del IGSS:
+// - Fechas quincena 2: siempre 14 dias (16 al 29 o ajuste segun mes)
 // - Nombres: el IGSS espera Nombre1|Nombre2|Apellido1|Apellido2
-//   Nuestros empleados están guardados como “APELLIDO1 APELLIDO2, NOMBRE1 NOMBRE2”
+//   Nuestros empleados estan guardados como “APELLIDO1 APELLIDO2, NOMBRE1 NOMBRE2”
 // - Tipo salario: usar 1 (entero) en lugar de ‘N’
-// - Código ocupación: 5014 (Gasolinero — Escala IGSS categoría B)
+// - Codigo ocupacion: 5014 (Gasolinero - Escala IGSS categoria B)
 // - Agregar [FinPlanilla] al final
 const COD_OCUPACION = 5014
 
@@ -196,10 +196,10 @@ const yyyy = hoy.getFullYear()
 const fechaGen = `${dd}/${mm}/${yyyy}`
 const mes2 = String(mes).padStart(2,‘0’)
 
-// Q1: siempre 01-14 (14 días exactos — requerimiento IGSS múltiplo de 14)
+// Q1: siempre 01-14 (14 dias exactos - requerimiento IGSS multiplo de 14)
 const fechaIni1 = `01/${mes2}/${anio}`
 const fechaFin1 = `14/${mes2}/${anio}`
-// Q2: siempre 15-28 (14 días exactos)
+// Q2: siempre 15-28 (14 dias exactos)
 const fechaIni2 = `15/${mes2}/${anio}`
 const fechaFin2 = `28/${mes2}/${anio}`
 
@@ -231,16 +231,16 @@ if (coma > -1) {
   a1 = apellidos[0] || ''; a2 = apellidos[1] || ''
   n1 = nombres[0]   || ''; n2 = nombres[1]   || ''
 } else {
-  // Sin coma — dividir en 4 partes: primeras 2 apellidos, siguientes nombres
+  // Sin coma - dividir en 4 partes: primeras 2 apellidos, siguientes nombres
   const partes = raw.trim().split(/\s+/)
   a1 = partes[0]||''; a2 = partes[1]||''
   n1 = partes[2]||''; n2 = partes[3]||''
 }
 
-// Línea formato: liq|afiliado|n1|n2|a1|a2||salQ|fechaIni||1|NIT|codOcup|P|cuotaLab|1|0|TC|14
+// Linea formato: liq|afiliado|n1|n2|a1|a2||salQ|fechaIni||1|NIT|codOcup|P|cuotaLab|1|0|TC|14
 // Tipo salario: 1 (entero, no 'N')
-// Código ocupación: COD_OCUPACION
-// Días: 14 (quincena exacta)
+// Codigo ocupacion: COD_OCUPACION
+// Dias: 14 (quincena exacta)
 for (const [liq, fi] of [['1', fechaIni1], ['2', fechaIni2]]) {
   lines.push(`${liq}|${igssNum}|${n1}|${n2}|${a1}|${a2}||${salQ}|${fi}||1|${NIT_PATRONO}|${COD_OCUPACION}|P|${cuotaLabQ}|1|0|TC|14`)
 }
@@ -252,7 +252,7 @@ lines.push(’[FinPlanilla]’)
 return lines.join(’\n’)
 }
 
-// ── Página principal ────────────────────────────────────────────────────────
+// – Pagina principal ––––––––––––––––––––––––––––
 export default function IGSS({ session }) {
 const router = useRouter()
 const [perfil, setPerfil] = useState(null)
@@ -288,7 +288,7 @@ const { data: plans } = await supabase.from(‘planillas’).select(’*’)
 setPlanillas(plans || [])
 
 ```
-// Cargar líneas de todas las planillas del mes
+// Cargar lineas de todas las planillas del mes
 if (plans && plans.length > 0) {
   const ids = plans.map(p => p.id)
   const { data: lineas } = await supabase.from('planilla_lineas')
@@ -307,17 +307,17 @@ const { data } = await supabase.from(‘empleados’).select(’*’).eq(‘acti
 setEmpleados(data || [])
 }
 
-// ── Base imponible IGSS por empleado desde planilla_lineas ─────────────
-// Agrupar líneas por empleado_id (suma 1ra + 2da quincena)
+// – Base imponible IGSS por empleado desde planilla_lineas ———––
+// Agrupar lineas por empleado_id (suma 1ra + 2da quincena)
 // Base imponible = salario_quincenal*2 + horas_extra + comisiones + otros_ingresos
 //                  - bonificacion_incentivo_ley (Q250/mes, exenta IGSS Decreto 37-2001)
 // NOTA: otros_ingresos YA incluye bonificaciones de puesto (Q200 jefes, Q1750 admins)
-//       que SÍ afectan IGSS — solo excluimos la bonif. incentivo de Q250
+//       que SI afectan IGSS - solo excluimos la bonif. incentivo de Q250
 const BONIF_INCENTIVO_EXENTA = 250.00
 
 const empConBase = (() => {
 if (lineasMes.length === 0) {
-// Sin planillas del mes — usar catálogo de empleados como fallback
+// Sin planillas del mes - usar catalogo de empleados como fallback
 return empleados.map(e => ({
 …e,
 sal_mensual_igss: round(
@@ -354,7 +354,7 @@ lineasMes.forEach(l => {
 
 return Object.values(mapa).map(e => ({
   ...e,
-  // Restar bonificación incentivo de ley (Q250/mes exenta IGSS)
+  // Restar bonificacion incentivo de ley (Q250/mes exenta IGSS)
   sal_mensual_igss: round(Math.max(0, e.devengado - BONIF_INCENTIVO_EXENTA))
 }))
 ```
@@ -406,7 +406,7 @@ const url  = URL.createObjectURL(blob)
 const a    = document.createElement(‘a’)
 a.href = url; a.download = nombre; a.click()
 URL.revokeObjectURL(url)
-toast(‘✓ Archivo TXT generado’, ‘success’)
+toast(‘OK Archivo TXT generado’, ‘success’)
 } catch (err) {
 toast(‘Error al generar archivo’, ‘error’)
 }
@@ -437,12 +437,12 @@ return (
     <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
       <div>
         <h1 className="text-lg font-semibold text-gray-900">Planilla IGSS</h1>
-        <p className="text-sm text-gray-400">Número patronal {NUM_PATRONAL} · {NOMBRE_PAT}</p>
+        <p className="text-sm text-gray-400">Numero patronal {NUM_PATRONAL}   {NOMBRE_PAT}</p>
         {empConBase.length > 0 && (
           <p className="text-xs mt-0.5">
             {lineasMes.length > 0
-              ? <span className="text-green-600">✓ Calculado desde planillas del mes (base imponible real)</span>
-              : <span className="text-amber-600">⚠ Sin planillas registradas — usando catálogo de empleados</span>
+              ? <span className="text-green-600">OK Calculado desde planillas del mes (base imponible real)</span>
+              : <span className="text-amber-600">WARN Sin planillas registradas - usando catalogo de empleados</span>
             }
           </p>
         )}
@@ -471,8 +471,8 @@ return (
     {/* Estado planillas del mes */}
     <div className="grid grid-cols-2 gap-3 mb-5">
       {[
-        { label: `1ra Quincena — ${MESES[mesSeleccionado.mes]}`, p: q1 },
-        { label: `2da Quincena — ${MESES[mesSeleccionado.mes]}`, p: q2 },
+        { label: `1ra Quincena - ${MESES[mesSeleccionado.mes]}`, p: q1 },
+        { label: `2da Quincena - ${MESES[mesSeleccionado.mes]}`, p: q2 },
       ].map(({ label, p }) => (
         <div key={label} className={`rounded-xl p-4 border ${p?.estado === 'pagada' ? 'bg-green-50 border-green-100' : p ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100'}`}>
           <div className="text-xs text-gray-500 mb-1">{label}</div>
@@ -483,7 +483,7 @@ return (
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.estado === 'pagada' ? 'bg-green-100 text-green-700' : p.estado === 'aprobada' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                   {p.estado}
                 </span>
-                <span className="text-xs text-gray-400">{fmt(p.total_liquido)} líquido</span>
+                <span className="text-xs text-gray-400">{fmt(p.total_liquido)} liquido</span>
               </div>
             </>
           ) : (
@@ -498,7 +498,7 @@ return (
         <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
-        <span className="text-sm text-amber-800">Solo una quincena está pagada. El archivo TXT se puede generar pero considera que el mes no está completo.</span>
+        <span className="text-sm text-amber-800">Solo una quincena esta pagada. El archivo TXT se puede generar pero considera que el mes no esta completo.</span>
       </div>
     )}
 
@@ -514,7 +514,7 @@ return (
 
     {tab === 'resumen' && (
       <div className="space-y-4">
-        {/* Métricas */}
+        {/* Metricas */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: 'Trabajadores', value: empConBase.length, sub: 'activos' },
@@ -535,12 +535,12 @@ return (
 
         {/* Info archivo */}
         <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
-          <div className="text-xs font-medium text-gray-700 mb-2">Información del archivo TXT</div>
+          <div className="text-xs font-medium text-gray-700 mb-2">Informacion del archivo TXT</div>
           <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
             <div>Nombre: <span className="font-mono text-gray-700">{NUM_PATRONAL}-{mesSeleccionado.anio}{String(mesSeleccionado.mes).padStart(2,'0')}-ddmmyyyy-HHmm.TXT</span></div>
             <div>Formato: <span className="text-gray-700">v2.2.0 separado por |</span></div>
             <div>Portal: <span className="text-blue-600">servicios.igssgt.org</span></div>
-            <div>Vencimiento: <span className="text-gray-700">día 20 del mes siguiente</span></div>
+            <div>Vencimiento: <span className="text-gray-700">dia 20 del mes siguiente</span></div>
           </div>
         </div>
       </div>
