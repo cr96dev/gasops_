@@ -46,6 +46,7 @@ export default function Tienda({ session }) {
   const [guardandoProveedor, setGuardandoProveedor] = useState(false)
 
   const [itemsFEL, setItemsFEL] = useState([])
+  const [categoriasAbiertas, setCategoriasAbiertas] = useState({})
   const [cargandoItemsFEL, setCargandoItemsFEL] = useState(false)
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
@@ -199,11 +200,49 @@ export default function Tienda({ session }) {
 
   async function cargarItemsFEL(fecha) {
     setCargandoItemsFEL(true)
-    const { data } = await supabase.from('tienda_facturas_fel_items')
-      .select('descripcion, cantidad, total, precio_unitario')
-      .eq('fecha', fecha)
-      .order('total', { ascending: false })
-    setItemsFEL(data || [])
+    // Traer todos los items en páginas de 1000
+    let todos = []
+    let desde = 0
+    const POR_PAGINA = 1000
+    while (true) {
+      const { data } = await supabase.from('tienda_facturas_fel_items')
+        .select('descripcion, cantidad, total, precio_unitario')
+        .eq('fecha', fecha)
+        .range(desde, desde + POR_PAGINA - 1)
+      if (!data || data.length === 0) break
+      todos = todos.concat(data)
+      if (data.length < POR_PAGINA) break
+      desde += POR_PAGINA
+    }
+    // Agrupar por producto y categoría
+    const CATEGORIAS = {
+      'Shell / Helix': ['HELIX HX3 SAE 40 LITRO','HELIX HX3 SAE 40 GALÓN','HELIX HX3 25W-60 LITRO','HELIX HX3 25W-60 GALÓN','HELIX HX5 20W-50 LITRO','HELIX HX5 20W-50 GALÓN','HELIX HX7 SN 10W-30 AZUL LITRO','HELIX HX7 SN 10W-30 AZUL GALÓN','HELIX HX8 5W-30 LITRO','HELIX ULTRA 5W-30 LITRO','HELIX ULTRA 5W-30 GALÓN','HELIX ULTRA 5W-40 LITRO','HELIX ULTRA 5W-40 GALÓN','SHELL ADVANCE S2 DOS TT LITRO','SHELL ADVANCE AX5 4T 20W50 LITRO','SHELL ADVANCE SAE 10W-40 ULTRA','SHELL SPIRAX S5 ATF X','SHELL SPIRAX S3 ATF MD3 LITRO','RIMULA R4X 15W-40 GRIS LITRO','RIMULA R4X 15W-40 GRIS GALÓN'],
+      'UNO': ['UNO Ultra 10W-30 1 LITRO','UNO Ultra 10W-30 GALON','UNO Ultra 15W-40 1 GALON','UNO Ultra 20W-50 1 LITRO','UNO Ultra 20W-50 1 GALON','UNO Ultra 40 1 LITRO','UNO Ultra 40 1 GALON','UNO ULTRA FULL SYNT 5W-30','UNO Forza 15W-40 1 LITRO','UNO Forza 50 1 LITRO','UNO Impulse 4T 20W-50 1 LITRO','UNO Impulse 2T LITRO','UNO Synchron ATF 1 LITRO','FORZA EURO SAE 5W-40 1 LITRO'],
+      'Fluidos': ['LIQUIDO DE FRENOS','POWER STEERING 12 ONZAS','REFRIGERANTE TOP GUARD','TP COOLANT 50/50 1 LITRO','TP COOLANT 50/50 1 GALON','TP Brake Fluid PINTA 12 OZ','TP Power Steering F PINTA 12 OZ','Prodin Activador Electrolitico 18oz','Prodin Agua Destilada 18oz'],
+      'Accesorios': ['PLUMILLAS BOSCH','Garantía x Lluvia','TP Fuel Injector PINTA 12 OZ'],
+    }
+    function getCategoria(desc) {
+      for (const [cat, productos] of Object.entries(CATEGORIAS)) {
+        if (productos.includes(desc)) return cat
+      }
+      return 'Otros'
+    }
+    const mapa = {}
+    for (const item of todos) {
+      const cat = getCategoria(item.descripcion)
+      if (!mapa[cat]) mapa[cat] = {}
+      if (!mapa[cat][item.descripcion]) mapa[cat][item.descripcion] = { descripcion: item.descripcion, cantidad: 0, total: 0, precio_unitario: parseFloat(item.precio_unitario) || 0 }
+      mapa[cat][item.descripcion].cantidad += parseFloat(item.cantidad) || 0
+      mapa[cat][item.descripcion].total += parseFloat(item.total) || 0
+    }
+    // Convertir a array por categoría ordenado por total desc
+    const resultado = Object.entries(mapa).map(([cat, productos]) => ({
+      categoria: cat,
+      productos: Object.values(productos).sort((a, b) => b.total - a.total),
+      total: Object.values(productos).reduce((s, p) => s + p.total, 0),
+      cantidad: Object.values(productos).reduce((s, p) => s + p.cantidad, 0),
+    })).sort((a, b) => b.total - a.total)
+    setItemsFEL(resultado)
     setCargandoItemsFEL(false)
   }
 
@@ -520,32 +559,54 @@ export default function Tienda({ session }) {
                         {cargandoItemsFEL ? 'Cargando...' : 'Sin ventas FEL para esta fecha'}
                       </div>
                     ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-100">
-                            <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Producto</th>
-                            <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Cant.</th>
-                            <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Precio unit.</th>
-                            <th className="px-5 py-2.5 text-right text-xs text-gray-400 font-normal">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {itemsFEL.map((item, i) => (
-                            <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                              <td className="px-5 py-2.5 text-gray-700 text-xs">{item.descripcion}</td>
-                              <td className="px-3 py-2.5 text-center text-gray-600 text-xs">{parseFloat(item.cantidad||0).toLocaleString('es-GT')}</td>
-                              <td className="px-3 py-2.5 text-right text-gray-500 text-xs">Q{parseFloat(item.precio_unitario||0).toLocaleString('es-GT',{minimumFractionDigits:2})}</td>
-                              <td className="px-5 py-2.5 text-right font-medium text-gray-800 text-xs">Q{parseFloat(item.total||0).toLocaleString('es-GT',{minimumFractionDigits:2})}</td>
-                            </tr>
-                          ))}
-                          <tr className="bg-gray-50 border-t border-gray-100">
-                            <td className="px-5 py-2.5 text-xs font-semibold text-gray-700" colSpan={3}>Total</td>
-                            <td className="px-5 py-2.5 text-right text-sm font-bold text-gray-900">
-                              Q{itemsFEL.reduce((s,i) => s + parseFloat(i.total||0), 0).toLocaleString('es-GT',{minimumFractionDigits:2})}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                      <div>
+                        {itemsFEL.map((cat, ci) => (
+                          <div key={ci} className="border-b border-gray-100 last:border-0">
+                            <button
+                              onClick={() => setCategoriasAbiertas(prev => ({ ...prev, [cat.categoria]: !prev[cat.categoria] }))}
+                              className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <svg className={`w-4 h-4 text-gray-400 transition-transform ${categoriasAbiertas[cat.categoria] ? 'rotate-180' : ''}`}
+                                  fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <span className="text-sm font-medium text-gray-800">{cat.categoria}</span>
+                                <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{cat.productos.length} productos</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-semibold text-gray-900">Q{cat.total.toLocaleString('es-GT',{minimumFractionDigits:2})}</div>
+                                <div className="text-xs text-gray-400">{cat.cantidad.toLocaleString('es-GT')} unidades</div>
+                              </div>
+                            </button>
+                            {categoriasAbiertas[cat.categoria] && (
+                              <table className="w-full text-xs border-t border-gray-50">
+                                <thead>
+                                  <tr className="bg-gray-50">
+                                    <th className="px-8 py-2 text-left text-gray-400 font-normal">Producto</th>
+                                    <th className="px-3 py-2 text-center text-gray-400 font-normal">Cant.</th>
+                                    <th className="px-5 py-2 text-right text-gray-400 font-normal">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {cat.productos.map((p, pi) => (
+                                    <tr key={pi} className="border-t border-gray-50 hover:bg-gray-50">
+                                      <td className="px-8 py-2 text-gray-700">{p.descripcion}</td>
+                                      <td className="px-3 py-2 text-center text-gray-500">{p.cantidad.toLocaleString('es-GT')}</td>
+                                      <td className="px-5 py-2 text-right font-medium text-gray-800">Q{p.total.toLocaleString('es-GT',{minimumFractionDigits:2})}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        ))}
+                        <div className="flex justify-between px-5 py-3 bg-gray-50 border-t border-gray-100">
+                          <span className="text-sm font-semibold text-gray-700">Total general</span>
+                          <span className="text-sm font-bold text-gray-900">
+                            Q{itemsFEL.reduce((s,c) => s + c.total, 0).toLocaleString('es-GT',{minimumFractionDigits:2})}
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
