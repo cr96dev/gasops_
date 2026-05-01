@@ -45,6 +45,8 @@ export default function Tienda({ session }) {
   })
   const [guardandoProveedor, setGuardandoProveedor] = useState(false)
 
+  const [itemsFEL, setItemsFEL] = useState([])
+  const [cargandoItemsFEL, setCargandoItemsFEL] = useState(false)
   const chartRef = useRef(null)
   const chartInstance = useRef(null)
   const { toasts, toast } = useToast()
@@ -140,6 +142,7 @@ export default function Tienda({ session }) {
       const { data: gsDetalle } = await supabase.from('tienda_gastos')
         .select('*').eq('fecha', fechaResumen).order('created_at', { ascending: false })
       setGastos(gsDetalle || [])
+      await cargarItemsFEL(fechaResumen)
     } else {
       const { data: gsDetalle } = await supabase.from('tienda_gastos')
         .select('*').gte('fecha', ini).lte('fecha', fin).order('fecha', { ascending: false })
@@ -192,6 +195,16 @@ export default function Tienda({ session }) {
       s.onload = cargarChart
       document.head.appendChild(s)
     }
+  }
+
+  async function cargarItemsFEL(fecha) {
+    setCargandoItemsFEL(true)
+    const { data } = await supabase.from('tienda_facturas_fel_items')
+      .select('descripcion, cantidad, total, precio_unitario')
+      .eq('fecha', fecha)
+      .order('total', { ascending: false })
+    setItemsFEL(data || [])
+    setCargandoItemsFEL(false)
   }
 
   async function guardarVenta(e) {
@@ -492,6 +505,48 @@ export default function Tienda({ session }) {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {/* Items FEL del día */}
+                {vistaResumen === 'diaria' && (
+                  <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                    <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                      <h2 className="text-sm font-medium text-gray-700">Detalle de ventas FEL — {fechaResumen}</h2>
+                      {cargandoItemsFEL && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
+                    </div>
+                    {itemsFEL.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-gray-400">
+                        {cargandoItemsFEL ? 'Cargando...' : 'Sin ventas FEL para esta fecha'}
+                      </div>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Producto</th>
+                            <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Cant.</th>
+                            <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Precio unit.</th>
+                            <th className="px-5 py-2.5 text-right text-xs text-gray-400 font-normal">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {itemsFEL.map((item, i) => (
+                            <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                              <td className="px-5 py-2.5 text-gray-700 text-xs">{item.descripcion}</td>
+                              <td className="px-3 py-2.5 text-center text-gray-600 text-xs">{parseFloat(item.cantidad||0).toLocaleString('es-GT')}</td>
+                              <td className="px-3 py-2.5 text-right text-gray-500 text-xs">Q{parseFloat(item.precio_unitario||0).toLocaleString('es-GT',{minimumFractionDigits:2})}</td>
+                              <td className="px-5 py-2.5 text-right font-medium text-gray-800 text-xs">Q{parseFloat(item.total||0).toLocaleString('es-GT',{minimumFractionDigits:2})}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-gray-50 border-t border-gray-100">
+                            <td className="px-5 py-2.5 text-xs font-semibold text-gray-700" colSpan={3}>Total</td>
+                            <td className="px-5 py-2.5 text-right text-sm font-bold text-gray-900">
+                              Q{itemsFEL.reduce((s,i) => s + parseFloat(i.total||0), 0).toLocaleString('es-GT',{minimumFractionDigits:2})}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 )}
 
