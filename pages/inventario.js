@@ -83,6 +83,8 @@ export default function Inventario({ session }) {
   const [cargandoInicial, setCargandoInicial] = useState(false)
   const [errorInicial, setErrorInicial] = useState('')
 
+  const [estaciones, setEstaciones] = useState([])
+  const [estacionAdmin, setEstacionAdmin] = useState('')
   const { toasts, toast } = useToast()
 
   useEffect(() => {
@@ -93,12 +95,23 @@ export default function Inventario({ session }) {
   async function loadData() {
     const { data: p } = await supabase.from('perfiles').select('*, estaciones(*)').eq('id', session.user.id).single()
     setPerfil(p); setEstacion(p?.estaciones)
-    if (p?.estacion_id) {
+    if (p?.rol === 'admin') {
+      const { data: ests } = await supabase.from('estaciones').select('id, nombre').order('nombre')
+      setEstaciones(ests || [])
+    } else if (p?.estacion_id) {
       const { data } = await supabase.from('inventario').select('*')
         .eq('estacion_id', p.estacion_id).order('producto')
       setInventario(data || [])
     }
     setLoading(false)
+  }
+
+  async function cargarInventarioAdmin(estId) {
+    setEstacionAdmin(estId)
+    if (!estId) { setInventario([]); return }
+    const { data } = await supabase.from('inventario').select('*')
+      .eq('estacion_id', estId).order('producto')
+    setInventario(data || [])
   }
 
   // ── Entrega desde app ──
@@ -287,17 +300,27 @@ export default function Inventario({ session }) {
         </div>
 
         <div className="flex gap-1 mb-5 border-b border-gray-100 overflow-x-auto">
-          {[
-            ['actual', 'Stock actual'],
-            ['entrega', 'Registrar entrega'],
-            ['inicial', 'Carga inicial (Excel)'],
-          ].map(([key, label]) => (
+          {(perfil?.rol === 'admin'
+            ? [['actual', 'Stock actual'], ['entrega', 'Registrar entrega'], ['inicial', 'Carga inicial (Excel)']]
+            : [['entrega', 'Registrar entrega']]
+          ).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm border-b-2 transition-colors whitespace-nowrap ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               {label}
             </button>
           ))}
         </div>
+
+        {/* ── Selector estacion para admin ── */}
+        {perfil?.rol === 'admin' && tab === 'actual' && (
+          <div className="mb-4">
+            <select value={estacionAdmin} onChange={e => cargarInventarioAdmin(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white w-full max-w-xs">
+              <option value="">Selecciona una estación...</option>
+              {estaciones.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* ── Tab: Stock actual ── */}
         {tab === 'actual' && (
@@ -346,14 +369,16 @@ export default function Inventario({ session }) {
                             <td className="px-3 py-2.5 text-center">
                               <input type="number" min="0" step="0.01"
                                 defaultValue={item.stock_actual}
-                                onBlur={e => actualizarStock(item.id, 'stock_actual', e.target.value)}
-                                className={`w-20 border rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400 ${bajo ? 'border-amber-300 bg-amber-50' : 'border-gray-200'}`} />
+                                readOnly={perfil?.rol !== 'admin'}
+                                onBlur={e => perfil?.rol === 'admin' && actualizarStock(item.id, 'stock_actual', e.target.value)}
+                                className={`w-20 border rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400 ${bajo ? 'border-amber-300 bg-amber-50' : 'border-gray-200'} ${perfil?.rol !== 'admin' ? 'bg-gray-50 cursor-default' : ''}`} />
                             </td>
                             <td className="px-3 py-2.5 text-center">
                               <input type="number" min="0" step="0.01"
                                 defaultValue={item.stock_minimo}
-                                onBlur={e => actualizarStock(item.id, 'stock_minimo', e.target.value)}
-                                className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400" />
+                                readOnly={perfil?.rol !== 'admin'}
+                                onBlur={e => perfil?.rol === 'admin' && actualizarStock(item.id, 'stock_minimo', e.target.value)}
+                                className={`w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400 ${perfil?.rol !== 'admin' ? 'bg-gray-50 cursor-default' : ''}`} />
                             </td>
                             <td className="px-3 py-2.5 text-gray-500 text-xs">{item.unidad}</td>
                             <td className="px-3 py-2.5 text-center">
@@ -362,7 +387,9 @@ export default function Inventario({ session }) {
                                 : <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">OK</span>}
                             </td>
                             <td className="px-4 py-2.5 text-right">
-                              <button onClick={() => eliminarProducto(item.id)} className="text-xs text-red-400 hover:text-red-600">Eliminar</button>
+                              {perfil?.rol === 'admin' && (
+                                <button onClick={() => eliminarProducto(item.id)} className="text-xs text-red-400 hover:text-red-600">Eliminar</button>
+                              )}
                             </td>
                           </tr>
                         )
@@ -488,7 +515,7 @@ export default function Inventario({ session }) {
         )}
 
         {/* ── Tab: Carga inicial Excel ── */}
-        {tab === 'inicial' && (
+        {tab === 'inicial' && perfil?.rol === 'admin' && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <div className="flex items-start gap-4">
