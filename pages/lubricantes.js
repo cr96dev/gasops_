@@ -2,528 +2,296 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
-import { useToast, ToastContainer } from '../components/Toast'
 
-const PRODUCTOS = [
-  { sku: 'MPPDVP-43',  nombre: 'Impulse 4T 10W40',                   precio: 68.00 },
-  { sku: 'MPPDVP-54',  nombre: 'SYNCHRON ATF FULL',                   precio: 73.00 },
-  { sku: 'MPPDVP-53',  nombre: 'CUBETA 15W40',                        precio: 678.00 },
-  { sku: 'MPPDVP-52',  nombre: 'CUBETA 20W50',                        precio: 700.00 },
-  { sku: 'MPPDVP-51',  nombre: 'SHELL ADVANCE SAE 10W-40 ULTRA',      precio: 91.00 },
-  { sku: 'MPPDVP-50',  nombre: 'PLUMILLAS BOSCH',                     precio: 135.00 },
-  { sku: 'MPPDVP-49',  nombre: 'POWER STEERING 12 ONZAS',             precio: 27.50 },
-  { sku: 'MPPDVP-48',  nombre: 'LIQUIDO DE FRENOS',                   precio: 29.50 },
-  { sku: 'MPPDVP-47',  nombre: 'REFRIGERANTE TOP GUARD',              precio: 34.50 },
-  { sku: 'MPPDVP-46',  nombre: 'SHELL SPIRAX S5 ATF X',               precio: 85.00 },
-  { sku: 'MPPDVP-45',  nombre: 'SHELL SPIRAX S3 ATF MD3 LITRO',       precio: 69.00 },
-  { sku: 'MPPDVP-44',  nombre: 'RIMULA R4X 15W-40 GRIS GALÓN',        precio: 282.00 },
-  { sku: 'MPPDVP-43B', nombre: 'RIMULA R4X 15W-40 GRIS LITRO',        precio: 70.00 },
-  { sku: 'MPPDVP-42',  nombre: 'HELIX ULTRA 5W-40 GALÓN',             precio: 415.00 },
-  { sku: 'MPPDVP-41',  nombre: 'HELIX ULTRA 5W-40 LITRO',             precio: 91.00 },
-  { sku: 'MPPDVP-40',  nombre: 'HELIX ULTRA 5W-30 GALÓN',             precio: 415.00 },
-  { sku: 'MPPDVP-39',  nombre: 'HELIX HX8 5W-30 LITRO',               precio: 87.00 },
-  { sku: 'MPPDVP-38',  nombre: 'HELIX ULTRA 5W-30 LITRO',             precio: 91.00 },
-  { sku: 'MPPDVP-37',  nombre: 'HELIX HX7 SN 10W-30 AZUL GALÓN',     precio: 315.00 },
-  { sku: 'MPPDVP-36',  nombre: 'HELIX HX7 SN 10W-30 AZUL LITRO',     precio: 78.00 },
-  { sku: 'MPPDVP-35',  nombre: 'HELIX HX5 20W-50 GALÓN',              precio: 265.00 },
-  { sku: 'MPPDVP-34',  nombre: 'HELIX HX5 20W-50 LITRO',              precio: 66.00 },
-  { sku: 'MPPDVP-33',  nombre: 'HELIX HX3 25W-60 GALÓN',              precio: 272.00 },
-  { sku: 'MPPDVP-32',  nombre: 'HELIX HX3 25W-60 LITRO',              precio: 67.00 },
-  { sku: 'MPPDVP-31',  nombre: 'HELIX HX3 SAE 40 GALÓN',              precio: 250.00 },
-  { sku: 'MPPDVP-30',  nombre: 'HELIX HX3 SAE 40 LITRO',              precio: 63.00 },
-  { sku: 'MPPDVP-29',  nombre: 'SHELL ADVANCE AX5 4T 20W50 LITRO',    precio: 67.00 },
-  { sku: 'MPPDVP-28',  nombre: 'SHELL ADVANCE S2 DOS TT LITRO',       precio: 67.00 },
-  { sku: 'MPPDVP-27',  nombre: 'TP Fuel Injector PINTA 12 OZ',        precio: 28.00 },
-  { sku: 'MPPDVP-26',  nombre: 'UNO Impulse 2T LITRO',                precio: 52.00 },
-  { sku: 'MPPDVP-25',  nombre: 'FORZA EURO SAE 5W-40 1 LITRO',        precio: 81.00 },
-  { sku: 'MPPDVP-24',  nombre: 'UNO ULTRA FULL SYNT 5W-30',           precio: 75.00 },
-  { sku: 'MPPDVP-23',  nombre: 'UNO Forza 50 1 LITRO',                precio: 52.00 },
-  { sku: 'MPPDVP-22',  nombre: 'UNO Forza 15W-40 1 LITRO',            precio: 53.00 },
-  { sku: 'MPPDVP-21',  nombre: 'TP Power Steering F PINTA 12 OZ',     precio: 22.00 },
-  { sku: 'MPPDVP-20',  nombre: 'TP Brake Fluid PINTA 12 OZ',          precio: 24.00 },
-  { sku: 'MPPDVP-19',  nombre: 'TP COOLANT 50/50 1 GALON',            precio: 104.00 },
-  { sku: 'MPPDVP-18',  nombre: 'TP COOLANT 50/50 1 LITRO',            precio: 29.00 },
-  { sku: 'MPPDVP-17',  nombre: 'UNO Synchron ATF 1 LITRO',            precio: 50.00 },
-  { sku: 'MPPDVP-16',  nombre: 'UNO Ultra 40 1 GALON',                precio: 173.00 },
-  { sku: 'MPPDVP-15',  nombre: 'UNO Ultra 40 1 LITRO',                precio: 52.00 },
-  { sku: 'MPPDVP-14',  nombre: 'UNO Ultra 20W-50 1 GALON',            precio: 192.00 },
-  { sku: 'MPPDVP-13',  nombre: 'UNO Ultra 15W-40 1 GALON',            precio: 185.00 },
-  { sku: 'MPPDVP-12',  nombre: 'UNO Ultra 20W-50 1 LITRO',            precio: 60.00 },
-  { sku: 'MPPDVP-11',  nombre: 'UNO Impulse 4T 20W-50 1 LITRO',       precio: 51.00 },
-  { sku: 'MPPDVP-10',  nombre: 'UNO Ultra 10W-30 GALON',              precio: 192.00 },
-  { sku: 'MPPDVP-9',   nombre: 'UNO Ultra 10W-30 1 LITRO',            precio: 60.00 },
-  { sku: 'MPPDVP-8',   nombre: 'Prodin Agua Destilada 18oz',          precio: 20.00 },
-  { sku: 'MPPDVP-7',   nombre: 'Prodin Activador Electrolitico 18oz', precio: 22.00 },
-  { sku: 'MPPDVP-6',   nombre: 'Garantía x Lluvia',                   precio: 15.00 },
-]
+const PRODUCTOS_INVENTARIO = new Set([
+  'LIQUIDO DE FRENOS', 'POWER STEERING 12 ONZAS', 'TP COOLANT 50/50 1 LITRO',
+  'TP COOLANT 50/50 1 GALON', 'SHELL ADVANCE S2 DOS TT LITRO', 'SHELL ADVANCE AX5 4T 20W50 LITRO',
+  'HELIX HX3 SAE 40 LITRO', 'HELIX HX8 5W-30 LITRO', 'HELIX HX5 20W-50 GALÓN',
+  'HELIX HX5 20W-50 LITRO', 'HELIX HX7 SN 10W-30 AZUL GALÓN', 'HELIX HX7 SN 10W-30 AZUL LITRO',
+  'RIMULA R4X 15W-40 GRIS GALÓN', 'RIMULA R4X 15W-40 GRIS LITRO', 'SHELL SPIRAX S5 ATF X',
+  'UNO Ultra 10W-30 1 LITRO', 'UNO Ultra 10W-30 GALON', 'UNO Impulse 4T 20W-50 1 LITRO',
+  'UNO Ultra 20W-50 1 LITRO', 'UNO Ultra 20W-50 1 GALON', 'UNO Ultra 40 1 LITRO',
+  'UNO Ultra 40 1 GALON', 'UNO Synchron ATF 1 LITRO', 'TP Brake Fluid PINTA 12 OZ',
+  'TP Power Steering F PINTA 12 OZ', 'UNO Forza 15W-40 1 LITRO', 'UNO Forza 50 1 LITRO',
+  'UNO ULTRA FULL SYNT 5W-30', 'FORZA EURO SAE 5W-40 1 LITRO', 'UNO Impulse 2T LITRO',
+  'HELIX HX3 SAE 40 GALÓN', 'HELIX HX3 25W-60 LITRO', 'HELIX HX3 25W-60 GALÓN',
+  'HELIX ULTRA 5W-30 LITRO', 'HELIX ULTRA 5W-30 GALÓN', 'HELIX ULTRA 5W-40 LITRO',
+  'HELIX ULTRA 5W-40 GALÓN', 'UNO Ultra 15W-40 1 GALON', 'REFRIGERANTE TOP GUARD',
+  'SHELL SPIRAX S3 ATF MD3 LITRO', 'SHELL ADVANCE SAE 10W-40 ULTRA',
+])
+
+function getFechaGuatemala() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
+}
+
+function getPrimerDiaMes() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+function formatQ(n) {
+  return 'Q' + parseFloat(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
 export default function Lubricantes({ session }) {
   const router = useRouter()
   const [perfil, setPerfil] = useState(null)
   const [estacion, setEstacion] = useState(null)
-  const [historial, setHistorial] = useState([])
   const [loading, setLoading] = useState(true)
-  const [guardando, setGuardando] = useState(false)
-  const [registroFecha, setRegistroFecha] = useState(null)
+  const [tab, setTab] = useState('hoy')
+  const [ventasHoy, setVentasHoy] = useState([])
+  const [cargandoHoy, setCargandoHoy] = useState(false)
+  const [fechaInicio, setFechaInicio] = useState(getPrimerDiaMes())
+  const [fechaFin, setFechaFin] = useState(getFechaGuatemala())
+  const [agrupacion, setAgrupacion] = useState('dia')
+  const [historial, setHistorial] = useState([])
+  const [cargandoHistorial, setCargandoHistorial] = useState(false)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
-  const [busqueda, setBusqueda] = useState('')
-  const [itemsSeleccionados, setItemsSeleccionados] = useState([])
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
-  const [neonet, setNeonet] = useState('')
-  const [efectivo, setEfectivo] = useState('')
-  const [notas, setNotas] = useState('')
-  const [errorMsg, setErrorMsg] = useState('')
-  const { toasts, toast } = useToast()
-  const hoy = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
-    loadData()
+    async function init() {
+      const { data: p } = await supabase.from('perfiles').select('*, estaciones(*)').eq('id', session.user.id).single()
+      if (!p) { router.push('/'); return }
+      setPerfil(p); setEstacion(p.estaciones)
+      setLoading(false)
+    }
+    init()
   }, [session])
 
   useEffect(() => {
-    if (perfil?.estacion_id) verificarFecha(fecha)
-  }, [fecha, perfil])
+    if (!perfil?.estacion_id) return
+    if (tab === 'hoy') cargarHoy()
+    if (tab === 'historial') cargarHistorial()
+  }, [perfil, tab, fechaInicio, fechaFin, agrupacion])
 
-  async function loadData() {
-    const { data: p } = await supabase.from('perfiles').select('*, estaciones(*)').eq('id', session.user.id).single()
-    setPerfil(p); setEstacion(p?.estaciones)
-    if (p?.estacion_id) {
-      await verificarFecha(fecha, p.estacion_id)
-      const { data: h } = await supabase.from('ventas_lubricantes')
-        .select('*, ventas_lubricantes_detalle(*)')
-        .eq('estacion_id', p.estacion_id)
-        .order('fecha', { ascending: false })
-        .limit(15)
-      setHistorial(h || [])
+  async function cargarHoy() {
+    setCargandoHoy(true)
+    const hoy = getFechaGuatemala()
+    const { data } = await supabase
+      .from('facturas_fel_items')
+      .select('descripcion, cantidad, total')
+      .eq('estacion_id', perfil.estacion_id)
+      .eq('fecha', hoy)
+    const mapa = {}
+    for (const item of (data || [])) {
+      if (!PRODUCTOS_INVENTARIO.has(item.descripcion)) continue
+      if (!mapa[item.descripcion]) mapa[item.descripcion] = { descripcion: item.descripcion, cantidad: 0, total: 0 }
+      mapa[item.descripcion].cantidad += parseFloat(item.cantidad) || 0
+      mapa[item.descripcion].total += parseFloat(item.total) || 0
     }
-    setLoading(false)
+    setVentasHoy(Object.values(mapa).sort((a, b) => b.total - a.total))
+    setCargandoHoy(false)
   }
 
-  async function verificarFecha(f, eid) {
-    const estacionId = eid || perfil?.estacion_id
-    if (!estacionId) return
-    const { data } = await supabase.from('ventas_lubricantes')
-      .select('*, ventas_lubricantes_detalle(*)')
-      .eq('estacion_id', estacionId)
-      .eq('fecha', f)
-      .single()
-    setRegistroFecha(data || null)
-  }
+  async function cargarHistorial() {
+    setCargandoHistorial(true)
+    const { data } = await supabase
+      .from('facturas_fel_items')
+      .select('descripcion, cantidad, total, fecha')
+      .eq('estacion_id', perfil.estacion_id)
+      .gte('fecha', fechaInicio)
+      .lte('fecha', fechaFin)
+      .order('fecha', { ascending: false })
 
-  function agregarProducto(producto) {
-    if (itemsSeleccionados.find(i => i.sku === producto.sku)) return
-    setItemsSeleccionados(prev => [...prev, {
-      sku: producto.sku,
-      nombre: producto.nombre,
-      cantidad: 1,
-      precio: producto.precio,
-    }])
-    setBusqueda('')
-  }
+    const filtrado = (data || []).filter(i => PRODUCTOS_INVENTARIO.has(i.descripcion))
+    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-  function actualizarItem(sku, campo, valor) {
-    setItemsSeleccionados(prev => prev.map(i =>
-      i.sku === sku ? { ...i, [campo]: valor } : i
-    ))
-  }
-
-  function quitarItem(sku) {
-    setItemsSeleccionados(prev => prev.filter(i => i.sku !== sku))
-  }
-
-  function totalVenta() {
-    return itemsSeleccionados.reduce((s, i) => s + (parseFloat(i.cantidad) || 0) * (parseFloat(i.precio) || 0), 0)
-  }
-
-  function totalCobros() {
-    return (parseFloat(neonet) || 0) + (parseFloat(efectivo) || 0)
-  }
-
-  function diferencia() {
-    return totalVenta() - totalCobros()
-  }
-
-  const productosFiltrados = PRODUCTOS.filter(p =>
-    p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.sku.toLowerCase().includes(busqueda.toLowerCase())
-  ).slice(0, 8)
-
-  async function guardar(e) {
-    e.preventDefault()
-    setErrorMsg('')
-
-    if (itemsSeleccionados.length === 0) {
-      setErrorMsg('Agrega al menos un producto.')
-      return
-    }
-
-    setGuardando(true)
-
-    const total_venta = totalVenta()
-
-    const { data: venta, error } = await supabase.from('ventas_lubricantes').insert({
-      estacion_id: perfil.estacion_id,
-      fecha,
-      neonet: parseFloat(neonet) || 0,
-      efectivo: parseFloat(efectivo) || 0,
-      total_venta,
-      notas,
-      creado_por: session.user.id,
-    }).select().single()
-
-    if (error) {
-      setErrorMsg(`Error: ${error.message}`)
-      setGuardando(false)
-      return
-    }
-
-    // Insertar detalle
-    const detalles = itemsSeleccionados.map(i => ({
-      venta_id: venta.id,
-      sku: i.sku,
-      nombre: i.nombre,
-      cantidad: parseFloat(i.cantidad) || 0,
-      precio_unitario: parseFloat(i.precio) || 0,
-      subtotal: (parseFloat(i.cantidad) || 0) * (parseFloat(i.precio) || 0),
-    }))
-
-    const { error: errorDetalle } = await supabase.from('ventas_lubricantes_detalle').insert(detalles)
-
-    if (errorDetalle) {
-      setErrorMsg(`Error en detalle: ${errorDetalle.message}`)
-      setGuardando(false)
-      return
-    }
-
-    // Rebajar inventario por cada producto vendido
-    for (const item of itemsSeleccionados) {
-      const { data: inv } = await supabase.from('inventario')
-        .select('id, stock_actual')
-        .eq('estacion_id', perfil.estacion_id)
-        .ilike('producto', item.nombre)
-        .single()
-
-      if (inv) {
-        const nuevoStock = Math.max(0, parseFloat(inv.stock_actual) - parseFloat(item.cantidad))
-        await supabase.from('inventario').update({
-          stock_actual: nuevoStock,
-          updated_at: new Date().toISOString()
-        }).eq('id', inv.id)
+    const mapa = {}
+    for (const item of filtrado) {
+      let key, label
+      if (agrupacion === 'dia') {
+        key = item.fecha; label = item.fecha
+      } else if (agrupacion === 'semana') {
+        const d = new Date(item.fecha + 'T12:00:00')
+        const ini = new Date(d); ini.setDate(d.getDate() - d.getDay())
+        key = ini.toLocaleDateString('en-CA')
+        label = `Semana del ${ini.toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })}`
+      } else {
+        key = item.fecha.substring(0, 7)
+        const [y, m] = key.split('-')
+        label = `${meses[parseInt(m)-1]} ${y}`
       }
+      if (!mapa[key]) mapa[key] = { periodo: key, label, total: 0, cantidad: 0, items: {} }
+      mapa[key].total += parseFloat(item.total) || 0
+      mapa[key].cantidad += parseFloat(item.cantidad) || 0
+      if (!mapa[key].items[item.descripcion]) mapa[key].items[item.descripcion] = { cantidad: 0, total: 0 }
+      mapa[key].items[item.descripcion].cantidad += parseFloat(item.cantidad) || 0
+      mapa[key].items[item.descripcion].total += parseFloat(item.total) || 0
     }
-
-    setItemsSeleccionados([])
-    setNeonet(''); setEfectivo(''); setNotas('')
-    toast('✓ Venta registrada e inventario actualizado', 'success')
-    await loadData()
-    setGuardando(false)
+    setHistorial(Object.values(mapa).sort((a, b) => b.periodo.localeCompare(a.periodo)))
+    setCargandoHistorial(false)
   }
+
+  const totalHoy = ventasHoy.reduce((s, v) => s + v.total, 0)
+  const unidadesHoy = ventasHoy.reduce((s, v) => s + v.cantidad, 0)
 
   if (loading) return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
     </div>
   )
 
-  const diff = diferencia()
-  const esFuturo = fecha > hoy
-
   return (
     <Layout perfil={perfil} estacion={estacion}>
-      <ToastContainer toasts={toasts} />
-      <div className="p-6 max-w-3xl">
-        <div className="mb-5">
-          <h1 className="text-lg font-semibold text-gray-900">Ventas de lubricantes</h1>
-          <p className="text-sm text-gray-400">{estacion?.nombre}</p>
+      <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Lubricantes</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{estacion?.nombre} · Ventas desde Infile</p>
         </div>
 
-        {/* Selector de fecha */}
-        <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="text-xs text-gray-500 block mb-1">Fecha del registro</label>
-              <input type="date" value={fecha} max={hoy}
-                onChange={e => setFecha(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 w-full" />
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button type="button" onClick={() => setFecha(hoy)}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${fecha === hoy ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                Hoy
-              </button>
-              <button type="button" onClick={() => {
-                const ayer = new Date(); ayer.setDate(ayer.getDate() - 1)
-                setFecha(ayer.toISOString().split('T')[0])
-              }} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
-                Ayer
-              </button>
-            </div>
-          </div>
-          {fecha !== hoy && !esFuturo && (
-            <div className="mt-2 flex items-center gap-2 text-amber-600">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span className="text-xs">Registro retroactivo para el {new Date(fecha + 'T12:00:00').toLocaleDateString('es-GT', { dateStyle: 'long' })}</span>
-            </div>
-          )}
+        <div className="flex gap-1 border-b border-gray-100">
+          {[['hoy', 'Hoy'], ['historial', 'Historial']].map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              className={`px-4 py-2 text-sm border-b-2 transition-colors ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              {label}
+            </button>
+          ))}
         </div>
 
-        {esFuturo ? (
-          <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-4 text-xs text-red-600">
-            No puedes registrar ventas para fechas futuras.
-          </div>
-        ) : registroFecha ? (
-          <div className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
-              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+        {tab === 'hoy' && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-xl border border-gray-100 p-4">
+                <div className="text-xs text-gray-400 mb-1">Total vendido hoy</div>
+                <div className="text-2xl font-bold text-gray-900">{formatQ(totalHoy)}</div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-4">
+                <div className="text-xs text-gray-400 mb-1">Unidades vendidas</div>
+                <div className="text-2xl font-bold text-gray-900">{unidadesHoy.toLocaleString('es-GT')}</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-medium text-gray-700">Productos vendidos hoy</h2>
+                {cargandoHoy && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
+              </div>
+              {ventasHoy.length === 0 ? (
+                <div className="py-10 text-center text-sm text-gray-400">
+                  {cargandoHoy ? 'Cargando...' : 'Sin ventas de lubricantes hoy'}
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Producto</th>
+                      <th className="px-3 py-2.5 text-center text-xs text-gray-400 font-normal">Cant.</th>
+                      <th className="px-5 py-2.5 text-right text-xs text-gray-400 font-normal">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ventasHoy.map((v, i) => (
+                      <tr key={i} className="border-b border-gray-50">
+                        <td className="px-5 py-3 text-gray-700 text-xs">{v.descripcion}</td>
+                        <td className="px-3 py-3 text-center text-gray-600 text-xs">{parseFloat(v.cantidad).toLocaleString('es-GT')}</td>
+                        <td className="px-5 py-3 text-right font-medium text-gray-800 text-xs">{formatQ(v.total)}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50 border-t border-gray-100">
+                      <td className="px-5 py-3 text-xs font-semibold text-gray-700">Total</td>
+                      <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700">{unidadesHoy.toLocaleString('es-GT')}</td>
+                      <td className="px-5 py-3 text-right text-sm font-bold text-gray-900">{formatQ(totalHoy)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 text-center">Los datos se sincronizan automáticamente cada noche desde Infile</p>
+          </>
+        )}
+
+        {tab === 'historial' && (
+          <>
+            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Desde</label>
+                  <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Hasta</label>
+                  <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+              </div>
               <div>
-                <div className="text-sm font-medium text-green-800">Registro del {new Date(fecha + 'T12:00:00').toLocaleDateString('es-GT', { dateStyle: 'long' })} ya existe</div>
-                <div className="text-xs text-green-600 mt-0.5">No puede modificarse. Contacta al administrador si hay un error.</div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h2 className="text-sm font-medium text-gray-700 mb-3">Productos vendidos</h2>
-              {(registroFecha.ventas_lubricantes_detalle || []).map(d => (
-                <div key={d.id} className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
-                  <div>
-                    <span className="text-gray-700">{d.nombre}</span>
-                    <span className="text-xs text-gray-400 ml-2">x{d.cantidad}</span>
-                  </div>
-                  <span className="text-gray-800 font-medium">Q{parseFloat(d.subtotal).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-                </div>
-              ))}
-              <div className="flex justify-between pt-2 mt-1 text-sm font-medium text-gray-800">
-                <span>Total venta</span>
-                <span>Q{parseFloat(registroFecha.total_venta).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
-              {parseFloat(registroFecha.neonet) > 0 && (
-                <div className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
-                  <span className="text-gray-600">Neonet</span>
-                  <span className="text-gray-800">Q{parseFloat(registroFecha.neonet).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-                </div>
-              )}
-              {parseFloat(registroFecha.efectivo) > 0 && (
-                <div className="flex justify-between py-1.5 border-b border-gray-50 text-sm">
-                  <span className="text-gray-600">Efectivo</span>
-                  <span className="text-gray-800">Q{parseFloat(registroFecha.efectivo).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-                </div>
-              )}
-              {(() => {
-                const dif = parseFloat(registroFecha.total_venta) - (parseFloat(registroFecha.neonet) + parseFloat(registroFecha.efectivo))
-                return (
-                  <div className={`flex justify-between pt-2 mt-1 text-sm font-medium ${Math.abs(dif) < 0.01 ? 'text-green-700' : 'text-red-600'}`}>
-                    <span>Diferencia</span>
-                    <span>{Math.abs(dif) < 0.01 ? '✓ Cuadra' : `Q${dif.toFixed(2)}`}</span>
-                  </div>
-                )
-              })()}
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={guardar} className="space-y-4">
-
-            {/* Buscador de productos */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h2 className="text-sm font-medium text-gray-700 mb-3">Agregar productos</h2>
-              <div className="relative mb-3">
-                <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                  placeholder="Buscar producto por nombre o SKU..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 pr-8" />
-                {busqueda && (
-                  <button type="button" onClick={() => setBusqueda('')}
-                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 text-xs">✕</button>
-                )}
-              </div>
-
-              {busqueda && (
-                <div className="border border-gray-100 rounded-lg overflow-hidden mb-3">
-                  {productosFiltrados.length === 0 && (
-                    <div className="px-4 py-3 text-xs text-gray-400 text-center">Sin resultados</div>
-                  )}
-                  {productosFiltrados.map(p => (
-                    <button key={p.sku} type="button" onClick={() => agregarProducto(p)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                      <div className="text-left">
-                        <div className="text-xs font-medium text-gray-800">{p.nombre}</div>
-                        <div className="text-xs text-gray-400">{p.sku}</div>
-                      </div>
-                      <div className="text-xs font-medium text-blue-600 ml-4">Q{p.precio.toFixed(2)}</div>
+                <label className="text-xs text-gray-500 block mb-1">Agrupar por</label>
+                <div className="flex gap-2">
+                  {[['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes']].map(([key, label]) => (
+                    <button key={key} onClick={() => setAgrupacion(key)}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${agrupacion === key ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      {label}
                     </button>
                   ))}
                 </div>
-              )}
-
-              {itemsSeleccionados.length > 0 && (
-                <div className="border border-gray-100 rounded-xl overflow-hidden">
-                  <div className="grid grid-cols-12 bg-gray-50 px-4 py-2 border-b border-gray-100">
-                    <div className="col-span-5 text-xs text-gray-400 font-medium">Producto</div>
-                    <div className="col-span-2 text-xs text-gray-400 font-medium text-center">Cant.</div>
-                    <div className="col-span-3 text-xs text-gray-400 font-medium text-center">Precio</div>
-                    <div className="col-span-2 text-xs text-gray-400 font-medium text-right">Total</div>
-                  </div>
-                  {itemsSeleccionados.map(item => (
-                    <div key={item.sku} className="grid grid-cols-12 gap-2 px-4 py-2.5 items-center border-b border-gray-50 last:border-0">
-                      <div className="col-span-5">
-                        <div className="text-xs font-medium text-gray-800 leading-tight">{item.nombre}</div>
-                        <button type="button" onClick={() => quitarItem(item.sku)}
-                          className="text-xs text-red-400 hover:text-red-600 mt-0.5">Quitar</button>
-                      </div>
-                      <div className="col-span-2">
-                        <input type="number" min="0" step="0.01" value={item.cantidad}
-                          onChange={e => actualizarItem(item.sku, 'cantidad', e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400" />
-                      </div>
-                      <div className="col-span-3">
-                        <input type="number" min="0" step="0.01" value={item.precio}
-                          onChange={e => actualizarItem(item.sku, 'precio', e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-blue-400" />
-                      </div>
-                      <div className="col-span-2 text-xs font-medium text-gray-800 text-right">
-                        Q{((parseFloat(item.cantidad)||0)*(parseFloat(item.precio)||0)).toLocaleString('es-GT', { maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="grid grid-cols-12 px-4 py-2.5 bg-gray-50 border-t border-gray-100">
-                    <div className="col-span-10 text-xs font-medium text-gray-600">Total venta</div>
-                    <div className="col-span-2 text-sm font-medium text-gray-800 text-right">
-                      Q{totalVenta().toLocaleString('es-GT', { maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {itemsSeleccionados.length === 0 && !busqueda && (
-                <div className="text-center py-4 text-xs text-gray-400">Busca un producto para agregarlo</div>
-              )}
-            </div>
-
-            {/* Formas de cobro */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Neonet (Q)</label>
-                  <input type="number" min="0" step="0.01" value={neonet}
-                    onChange={e => setNeonet(e.target.value)} placeholder="0.00"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">Efectivo (Q)</label>
-                  <input type="number" min="0" step="0.01" value={efectivo}
-                    onChange={e => setEfectivo(e.target.value)} placeholder="0.00"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
-                </div>
               </div>
-              {(neonet || efectivo) && (
-                <div className="space-y-1.5 border-t border-gray-100 pt-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Total venta</span>
-                    <span className="font-medium text-gray-800">Q{totalVenta().toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Total cobros</span>
-                    <span className="font-medium text-gray-800">Q{totalCobros().toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className={`flex justify-between text-sm font-medium pt-1 border-t border-gray-100 ${Math.abs(diff) < 0.01 ? 'text-green-700' : 'text-red-600'}`}>
-                    <span>Diferencia</span>
-                    <span>{Math.abs(diff) < 0.01 ? '✓ Cuadra' : `Q${diff.toFixed(2)}`}</span>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Notas */}
-            <div className="bg-white rounded-xl border border-gray-100 p-5">
-              <label className="text-xs text-gray-500 block mb-1">Observaciones (opcional)</label>
-              <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
-                placeholder="Notas del día..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
-            </div>
+            {cargandoHistorial ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : historial.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-100 py-10 text-center text-sm text-gray-400">
+                Sin ventas en el período seleccionado
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {historial.map((h, i) => (
+                  <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                    <button onClick={() => setDetalleAbierto(detalleAbierto === h.periodo ? null : h.periodo)}
+                      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                      <div className="text-left">
+                        <div className="text-sm font-medium text-gray-800">{h.label || h.periodo}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{h.cantidad.toLocaleString('es-GT')} unidades</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-bold text-gray-900">{formatQ(h.total)}</span>
+                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${detalleAbierto === h.periodo ? 'rotate-180' : ''}`}
+                          fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </button>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
-              <p className="text-xs text-amber-700">Una vez guardado el registro no podrá ser modificado. El inventario se actualizará automáticamente.</p>
-            </div>
-
-            {errorMsg && (
-              <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-3 text-xs text-red-700">{errorMsg}</div>
+                    {detalleAbierto === h.periodo && (
+                      <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-gray-400">
+                              <th className="text-left py-1 font-normal">Producto</th>
+                              <th className="text-center py-1 font-normal w-16">Cant.</th>
+                              <th className="text-right py-1 font-normal w-24">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(h.items)
+                              .sort((a, b) => b[1].total - a[1].total)
+                              .map(([nombre, datos], j) => (
+                                <tr key={j} className="border-t border-gray-100">
+                                  <td className="py-1.5 text-gray-700">{nombre}</td>
+                                  <td className="py-1.5 text-center text-gray-500">{datos.cantidad.toLocaleString('es-GT')}</td>
+                                  <td className="py-1.5 text-right font-medium text-gray-800">{formatQ(datos.total)}</td>
+                                </tr>
+                              ))}
+                            <tr className="border-t border-gray-200">
+                              <td className="py-2 font-semibold text-gray-700">Total</td>
+                              <td className="py-2 text-center font-semibold text-gray-700">{h.cantidad.toLocaleString('es-GT')}</td>
+                              <td className="py-2 text-right font-bold text-gray-900">{formatQ(h.total)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
-
-            <div className="flex justify-end">
-              <button type="submit" disabled={guardando}
-                className="bg-blue-600 text-white text-sm px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-                {guardando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                {guardando ? 'Guardando...' : 'Guardar registro'}
-              </button>
-            </div>
-          </form>
+          </>
         )}
-
-        {/* Historial */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mt-6">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-medium text-gray-700">Historial reciente</h2>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="px-5 py-2.5 text-left text-xs text-gray-400 font-normal">Fecha</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Total Q</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Neonet</th>
-                <th className="px-3 py-2.5 text-right text-xs text-gray-400 font-normal">Efectivo</th>
-                <th className="px-4 py-2.5 text-center text-xs text-gray-400 font-normal">Detalle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historial.length === 0 && (
-                <tr><td colSpan={5} className="px-5 py-6 text-center text-xs text-gray-400">Sin registros aún</td></tr>
-              )}
-              {historial.map(v => (
-                <>
-                  <tr key={v.id} onClick={() => setFecha(v.fecha)}
-                    className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
-                    <td className="px-5 py-3 text-gray-700">
-                      {v.fecha}
-                      {v.fecha === hoy && <span className="ml-2 text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">Hoy</span>}
-                    </td>
-                    <td className="px-3 py-3 text-right font-medium text-gray-800">Q{parseFloat(v.total_venta).toLocaleString('es-GT', { maximumFractionDigits: 2 })}</td>
-                    <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.neonet)>0?`Q${parseFloat(v.neonet).toLocaleString('es-GT',{maximumFractionDigits:2})}`:'—'}</td>
-                    <td className="px-3 py-3 text-right text-gray-600">{parseFloat(v.efectivo)>0?`Q${parseFloat(v.efectivo).toLocaleString('es-GT',{maximumFractionDigits:2})}`:'—'}</td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={e => { e.stopPropagation(); setDetalleAbierto(detalleAbierto===v.id?null:v.id) }}
-                        className="text-xs text-blue-600 hover:text-blue-800">
-                        {detalleAbierto===v.id?'▲ Cerrar':'▼ Ver'}
-                      </button>
-                    </td>
-                  </tr>
-                  {detalleAbierto===v.id && (
-                    <tr key={`${v.id}-det`} className="border-b border-gray-100">
-                      <td colSpan={5} className="px-5 py-3 bg-gray-50">
-                        <div className="space-y-1">
-                          {(v.ventas_lubricantes_detalle||[]).map(d => (
-                            <div key={d.id} className="flex justify-between text-xs">
-                              <span className="text-gray-600">{d.nombre} <span className="text-gray-400">x{d.cantidad}</span></span>
-                              <span className="text-gray-700 font-medium">Q{parseFloat(d.subtotal).toLocaleString('es-GT',{maximumFractionDigits:2})}</span>
-                            </div>
-                          ))}
-                        </div>
-                        {v.notas && <div className="mt-2 text-xs text-gray-400">Notas: {v.notas}</div>}
-                      </td>
-                    </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </Layout>
   )
