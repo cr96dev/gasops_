@@ -217,22 +217,28 @@ export default function Tienda({ session }) {
     // Agrupar por producto y categoría
     function getCategoria(desc) {
       const d = desc.toUpperCase()
-      // Lubricantes y automotriz
-      if (d.includes('HELIX') || d.includes('RIMULA') || d.includes('SHELL ADVANCE') || d.includes('SHELL SPIRAX') || d.includes('UNO ULTRA') || d.includes('UNO FORZA') || d.includes('UNO IMPULSE') || d.includes('UNO SYNCHRON') || d.includes('FORZA EURO') || d.includes('LIQUIDO DE FRENOS') || d.includes('POWER STEERING') || d.includes('REFRIGERANTE') || d.includes('TOPGUARD') || d.includes('TOP GUARD') || d.includes('TP COOLANT') || d.includes('TP BRAKE') || d.includes('PRODIN') || d.includes('PLUMILLAS') || d.includes('GARANTIA') || d.includes('GARANTÍA')) return 'Lubricantes y automotriz'
-      // Hot dogs y comida preparada
-      if (d.includes('DOG') || d.includes('HOT DOG') || d.includes('PIZZA') || d.includes('NACHOS') || d.includes('CROISSANT') || d.includes('MUFFIN') || d.includes('SANDWICH') || d.includes('SAND ') || d.includes('CIABATTA') || d.includes('DONA') || d.includes('PAN ') || d.includes('POLLONAZO') || d.includes('BISTEQUESO') || d.includes('SMOOTHIE')) return 'Comida preparada'
-      // Bebidas gaseosas y aguas
-      if (d.includes('COCA') || d.includes('PEPSI') || d.includes('SPRITE') || d.includes('FANTA') || d.includes('AGUA ') || d.includes('AGUA PURA') || d.includes('SALVAVIDAS') || d.includes('DASANI') || d.includes('HIDRAVIDA') || d.includes('SALUTARIS') || d.includes('GATORADE') || d.includes('POWERADE') || d.includes('RED BULL') || d.includes('MONSTER') || d.includes('SOBE') || d.includes('JUGOS')) return 'Bebidas'
-      // Cervezas y licores
-      if (d.includes('GALLO') || d.includes('CORONA') || d.includes('CABRO') || d.includes('CERVEZA') || d.includes('MICHELADA') || d.includes('MIX PARA MICHELADA') || d.includes('MONTECARLO') || d.includes('JAGER') || d.includes('PACK GALLO')) return 'Cervezas y licores'
-      // Cigarros y vapes
-      if (d.includes('MARLBORO') || d.includes('PALL MALL') || d.includes('TEREA') || d.includes('VUSE') || d.includes('CIGARRO') || d.includes('ELECTRONICO') || d.includes('CAJETILLA')) return 'Cigarros y vapes'
-      // Snacks y dulces
-      if (d.includes('PAPALINAS') || d.includes('LAYS') || d.includes('OREO') || d.includes('CHIKY') || d.includes('GALLETA') || d.includes('BOLSONA') || d.includes('SEÑORIAL') || d.includes('TRIDENT') || d.includes('CHICLE')) return 'Snacks y dulces'
-      // Café
-      if (d.includes('CAFE') || d.includes('CAPPUCCINO') || d.includes('CAFÉ')) return 'Café'
-      // Hielo y otros
-      if (d.includes('HIELO')) return 'Otros'
+      // Lubricantes
+      if (d.includes('HELIX') || d.includes('RIMULA') || d.includes('SHELL ADVANCE') || d.includes('SHELL SPIRAX') || d.includes('UNO ULTRA') || d.includes('UNO FORZA') || d.includes('UNO IMPULSE') || d.includes('UNO SYNCHRON') || d.includes('FORZA EURO') || d.includes('LIQUIDO DE FRENOS') || d.includes('POWER STEERING') || d.includes('TOPGUARD') || d.includes('TOP GUARD') || d.includes('TP COOLANT') || d.includes('TP BRAKE') || d.includes('PRODIN') || d.includes('REFRIGERANTE') || d.includes('PLUMILLAS') || d.includes('GARANTIA') || d.includes('GARANTÍA')) return 'Lubricantes'
+      // Bebidas Alcohólicas
+      if (d.includes('CERVEZA') || d.includes('GALLO') || d.includes('CORONA') || d.includes('CABRO') || d.includes('MONTECARLO') || d.includes('HEINEKEN') || d.includes('MODELO') || d.includes('BRAHVA') || d.includes('PACIFICO') || d.includes('MOZA') || d.includes('MICHELADA BOTEL') || d.includes('JAGERMEISTER') || d.includes('BOTRAN') || d.includes('QUEZALTECA') || d.includes('BACARDI') || d.includes('SMIRNOFF') || d.includes('CUBATA') || d.includes('ADAN Y EVA') || d.includes('RON ') || d.includes('VINO ') || d.includes('RTD ')) return 'Bebidas Alcohólicas'
+      // Bebidas No Alcohólicas
+      if (d.includes('COCA') || d.includes('PEPSI') || d.includes('SPRITE') || d.includes('FANTA') || d.includes('AGUA ') || d.includes('AGUA PURA') || d.includes('SALVAVIDAS') || d.includes('DASANI') || d.includes('HIDRAVIDA') || d.includes('SALUTARIS') || d.includes('GATORADE') || d.includes('POWERADE') || d.includes('RED BULL') || d.includes('MONSTER') || d.includes('SOBE') || d.includes('ADRENALINE') || d.includes('7UP') || d.includes('MIRINDA') || d.includes('FRESCA') || d.includes('SANGRI') || d.includes('GRAPETTE') || d.includes('H2OH') || d.includes('MIX PARA MICHELADA') || d.includes('MICHELADA PREP') || d.includes('NECTAR') || d.includes('JUMEX') || d.includes('JUGOS') || d.includes('JUGO ') || d.includes('DEL VALLE') || d.includes('MARINERO') || d.includes('PELLEGRINO')) return 'Bebidas No Alcohólicas'
+      // Café Premium
+      if (d.includes('CAFE') || d.includes('CAFÉ') || d.includes('CAPPUCCINO') || d.includes('SMOOTHIE') || d.includes('LATTE') || d.includes('ESPRESSO')) return 'Café Premium'
+      // Comida Rápida (hot dogs, pizzas, preparados del mostrador)
+      if (d.includes('DOG') || d.includes('PIZZA') || d.includes('NACHOS') || d.includes('CROISSANT') || d.includes('MUFFIN') || d.includes('CIABATTA') || d.includes('DONA') || d.includes('POLLONAZO') || d.includes('BISTEQUESO') || d.includes('SANDWICH') || d.includes('SAND ') || d.includes('PAN INTEGRAL') || d.includes('PAN CIA')) return 'Comida Rápida'
+      // Comida Preparada
+      if (d.includes('PIZZA PER') || d.includes('PIZZA DOG') || d.includes('PIZZA PEPPER')) return 'Comida Preparada'
+      // Tabaco
+      if (d.includes('MARLBORO') || d.includes('PALL MALL') || d.includes('TEREA') || d.includes('VUSE') || d.includes('CIGARRO') || d.includes('ELECTRONICO') || d.includes('CAJETILLA') || d.includes('BENSON') || d.includes('WINSTON')) return 'Tabaco'
+      // Snacks
+      if (d.includes('PAPALINAS') || d.includes('LAYS') || d.includes('OREO') || d.includes('CHIKY') || d.includes('GALLETA') || d.includes('BOLSONA') || d.includes('SEÑORIAL') || d.includes('TRIDENT') || d.includes('CHICLE') || d.includes('CHOCOLATE') || d.includes('HERSHEY') || d.includes('SNICKER') || d.includes('TWIX') || d.includes('CHIPS') || d.includes('DORITOS') || d.includes('CHEETOS') || d.includes('MAIZ') || d.includes('PALOMITAS') || d.includes('GOMA') || d.includes('CARAMELO')) return 'Snacks'
+      // Abarrotes
+      if (d.includes('SOPA') || d.includes('CAFE MOLIDO') || d.includes('PANUELO') || d.includes('KLEENEX') || d.includes('PRESERVATIVO') || d.includes('DUREX') || d.includes('CREMA DENTAL') || d.includes('COLGATE') || d.includes('HIELO') || d.includes('IGLOO') || d.includes('ICEBERG')) return 'Abarrotes'
+      // No Comestibles
+      if (d.includes('ENCENDEDOR') || d.includes('PILA') || d.includes('BATERIA') || d.includes('BOLSA ') || d.includes('DESODORANTE') || d.includes('SHAMPOO')) return 'No Comestibles'
+      // Perecederos
+      if (d.includes('LECHE') || d.includes('YOGURT') || d.includes('QUESO') || d.includes('JAMON') || d.includes('HUEVO')) return 'Perecederos'
       return 'Otros'
     }
     const mapa = {}
