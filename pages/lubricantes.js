@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
@@ -20,13 +20,16 @@ const PRODUCTOS_INVENTARIO = new Set([
   'SHELL SPIRAX S3 ATF MD3 LITRO', 'SHELL ADVANCE SAE 10W-40 ULTRA',
 ])
 
-function getFechaGuatemala() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
+function getAyerGuatemala() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
 }
 
-function getPrimerDiaMes() {
+function getHaceNDias(n) {
   const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  d.setDate(d.getDate() - n)
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
 }
 
 function formatQ(n) {
@@ -38,41 +41,49 @@ export default function Lubricantes({ session }) {
   const [perfil, setPerfil] = useState(null)
   const [estacion, setEstacion] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('hoy')
-  const [ventasHoy, setVentasHoy] = useState([])
-  const [cargandoHoy, setCargandoHoy] = useState(false)
-  const [fechaInicio, setFechaInicio] = useState(getPrimerDiaMes())
-  const [fechaFin, setFechaFin] = useState(getFechaGuatemala())
+  const [tab, setTab] = useState('ayer')
+  const [ventasAyer, setVentasAyer] = useState([])
+  const [cargandoAyer, setCargandoAyer] = useState(false)
+  const [fechaInicio, setFechaInicio] = useState(getHaceNDias(30))
+  const [fechaFin, setFechaFin] = useState(getAyerGuatemala())
   const [agrupacion, setAgrupacion] = useState('dia')
   const [historial, setHistorial] = useState([])
   const [cargandoHistorial, setCargandoHistorial] = useState(false)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
+  const [estacionId, setEstacionId] = useState(null)
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
     async function init() {
       const { data: p } = await supabase.from('perfiles').select('*, estaciones(*)').eq('id', session.user.id).single()
       if (!p) { router.push('/'); return }
-      setPerfil(p); setEstacion(p.estaciones)
+      setPerfil(p)
+      setEstacion(p.estaciones)
+      setEstacionId(p.estacion_id)
       setLoading(false)
     }
     init()
   }, [session])
 
   useEffect(() => {
-    if (!perfil?.estacion_id) return
-    if (tab === 'hoy') cargarHoy()
-    if (tab === 'historial') cargarHistorial()
-  }, [perfil, tab, fechaInicio, fechaFin, agrupacion])
+    if (!estacionId) return
+    if (tab === 'ayer') cargarAyer(estacionId)
+    if (tab === 'historial') cargarHistorial(estacionId, fechaInicio, fechaFin, agrupacion)
+  }, [estacionId, tab])
 
-  async function cargarHoy() {
-    setCargandoHoy(true)
-    const hoy = getFechaGuatemala()
+  useEffect(() => {
+    if (!estacionId || tab !== 'historial') return
+    cargarHistorial(estacionId, fechaInicio, fechaFin, agrupacion)
+  }, [fechaInicio, fechaFin, agrupacion])
+
+  async function cargarAyer(eid) {
+    setCargandoAyer(true)
+    const ayer = getAyerGuatemala()
     const { data } = await supabase
       .from('facturas_fel_items')
       .select('descripcion, cantidad, total')
-      .eq('estacion_id', perfil.estacion_id)
-      .eq('fecha', hoy)
+      .eq('estacion_id', eid)
+      .eq('fecha', ayer)
     const mapa = {}
     for (const item of (data || [])) {
       if (!PRODUCTOS_INVENTARIO.has(item.descripcion)) continue
@@ -80,18 +91,18 @@ export default function Lubricantes({ session }) {
       mapa[item.descripcion].cantidad += parseFloat(item.cantidad) || 0
       mapa[item.descripcion].total += parseFloat(item.total) || 0
     }
-    setVentasHoy(Object.values(mapa).sort((a, b) => b.total - a.total))
-    setCargandoHoy(false)
+    setVentasAyer(Object.values(mapa).sort((a, b) => b.total - a.total))
+    setCargandoAyer(false)
   }
 
-  async function cargarHistorial() {
+  async function cargarHistorial(eid, ini, fin, agrup) {
     setCargandoHistorial(true)
     const { data } = await supabase
       .from('facturas_fel_items')
       .select('descripcion, cantidad, total, fecha')
-      .eq('estacion_id', perfil.estacion_id)
-      .gte('fecha', fechaInicio)
-      .lte('fecha', fechaFin)
+      .eq('estacion_id', eid)
+      .gte('fecha', ini)
+      .lte('fecha', fin)
       .order('fecha', { ascending: false })
 
     const filtrado = (data || []).filter(i => PRODUCTOS_INVENTARIO.has(i.descripcion))
@@ -100,13 +111,13 @@ export default function Lubricantes({ session }) {
     const mapa = {}
     for (const item of filtrado) {
       let key, label
-      if (agrupacion === 'dia') {
+      if (agrup === 'dia') {
         key = item.fecha; label = item.fecha
-      } else if (agrupacion === 'semana') {
+      } else if (agrup === 'semana') {
         const d = new Date(item.fecha + 'T12:00:00')
-        const ini = new Date(d); ini.setDate(d.getDate() - d.getDay())
-        key = ini.toLocaleDateString('en-CA')
-        label = `Semana del ${ini.toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })}`
+        const inicio = new Date(d); inicio.setDate(d.getDate() - d.getDay())
+        key = inicio.toLocaleDateString('en-CA')
+        label = `Semana del ${inicio.toLocaleDateString('es-GT', { day: 'numeric', month: 'short' })}`
       } else {
         key = item.fecha.substring(0, 7)
         const [y, m] = key.split('-')
@@ -123,8 +134,8 @@ export default function Lubricantes({ session }) {
     setCargandoHistorial(false)
   }
 
-  const totalHoy = ventasHoy.reduce((s, v) => s + v.total, 0)
-  const unidadesHoy = ventasHoy.reduce((s, v) => s + v.cantidad, 0)
+  const totalAyer = ventasAyer.reduce((s, v) => s + v.total, 0)
+  const unidadesAyer = ventasAyer.reduce((s, v) => s + v.cantidad, 0)
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -142,7 +153,7 @@ export default function Lubricantes({ session }) {
         </div>
 
         <div className="flex gap-1 border-b border-gray-100">
-          {[['hoy', 'Hoy'], ['historial', 'Historial']].map(([key, label]) => (
+          {[['ayer', 'Ayer'], ['historial', 'Historial']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm border-b-2 transition-colors ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               {label}
@@ -150,27 +161,28 @@ export default function Lubricantes({ session }) {
           ))}
         </div>
 
-        {tab === 'hoy' && (
+        {/* ── Tab: Ayer ── */}
+        {tab === 'ayer' && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <div className="text-xs text-gray-400 mb-1">Total vendido hoy</div>
-                <div className="text-2xl font-bold text-gray-900">{formatQ(totalHoy)}</div>
+                <div className="text-xs text-gray-400 mb-1">Total vendido ayer</div>
+                <div className="text-2xl font-bold text-gray-900">{formatQ(totalAyer)}</div>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4">
                 <div className="text-xs text-gray-400 mb-1">Unidades vendidas</div>
-                <div className="text-2xl font-bold text-gray-900">{unidadesHoy.toLocaleString('es-GT')}</div>
+                <div className="text-2xl font-bold text-gray-900">{unidadesAyer.toLocaleString('es-GT')}</div>
               </div>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-gray-700">Productos vendidos hoy</h2>
-                {cargandoHoy && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
+                <h2 className="text-sm font-medium text-gray-700">Productos vendidos ayer — {getAyerGuatemala()}</h2>
+                {cargandoAyer && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
               </div>
-              {ventasHoy.length === 0 ? (
+              {ventasAyer.length === 0 ? (
                 <div className="py-10 text-center text-sm text-gray-400">
-                  {cargandoHoy ? 'Cargando...' : 'Sin ventas de lubricantes hoy'}
+                  {cargandoAyer ? 'Cargando...' : 'Sin ventas de lubricantes ayer'}
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -182,7 +194,7 @@ export default function Lubricantes({ session }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {ventasHoy.map((v, i) => (
+                    {ventasAyer.map((v, i) => (
                       <tr key={i} className="border-b border-gray-50">
                         <td className="px-5 py-3 text-gray-700 text-xs">{v.descripcion}</td>
                         <td className="px-3 py-3 text-center text-gray-600 text-xs">{parseFloat(v.cantidad).toLocaleString('es-GT')}</td>
@@ -191,8 +203,8 @@ export default function Lubricantes({ session }) {
                     ))}
                     <tr className="bg-gray-50 border-t border-gray-100">
                       <td className="px-5 py-3 text-xs font-semibold text-gray-700">Total</td>
-                      <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700">{unidadesHoy.toLocaleString('es-GT')}</td>
-                      <td className="px-5 py-3 text-right text-sm font-bold text-gray-900">{formatQ(totalHoy)}</td>
+                      <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700">{unidadesAyer.toLocaleString('es-GT')}</td>
+                      <td className="px-5 py-3 text-right text-sm font-bold text-gray-900">{formatQ(totalAyer)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -202,6 +214,7 @@ export default function Lubricantes({ session }) {
           </>
         )}
 
+        {/* ── Tab: Historial ── */}
         {tab === 'historial' && (
           <>
             <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
