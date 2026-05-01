@@ -215,16 +215,24 @@ export default function Tienda({ session }) {
       desde += POR_PAGINA
     }
     // Agrupar por producto y categoría
-    const CATEGORIAS = {
-      'Shell / Helix': ['HELIX HX3 SAE 40 LITRO','HELIX HX3 SAE 40 GALÓN','HELIX HX3 25W-60 LITRO','HELIX HX3 25W-60 GALÓN','HELIX HX5 20W-50 LITRO','HELIX HX5 20W-50 GALÓN','HELIX HX7 SN 10W-30 AZUL LITRO','HELIX HX7 SN 10W-30 AZUL GALÓN','HELIX HX8 5W-30 LITRO','HELIX ULTRA 5W-30 LITRO','HELIX ULTRA 5W-30 GALÓN','HELIX ULTRA 5W-40 LITRO','HELIX ULTRA 5W-40 GALÓN','SHELL ADVANCE S2 DOS TT LITRO','SHELL ADVANCE AX5 4T 20W50 LITRO','SHELL ADVANCE SAE 10W-40 ULTRA','SHELL SPIRAX S5 ATF X','SHELL SPIRAX S3 ATF MD3 LITRO','RIMULA R4X 15W-40 GRIS LITRO','RIMULA R4X 15W-40 GRIS GALÓN'],
-      'UNO': ['UNO Ultra 10W-30 1 LITRO','UNO Ultra 10W-30 GALON','UNO Ultra 15W-40 1 GALON','UNO Ultra 20W-50 1 LITRO','UNO Ultra 20W-50 1 GALON','UNO Ultra 40 1 LITRO','UNO Ultra 40 1 GALON','UNO ULTRA FULL SYNT 5W-30','UNO Forza 15W-40 1 LITRO','UNO Forza 50 1 LITRO','UNO Impulse 4T 20W-50 1 LITRO','UNO Impulse 2T LITRO','UNO Synchron ATF 1 LITRO','FORZA EURO SAE 5W-40 1 LITRO'],
-      'Fluidos': ['LIQUIDO DE FRENOS','POWER STEERING 12 ONZAS','REFRIGERANTE TOP GUARD','TP COOLANT 50/50 1 LITRO','TP COOLANT 50/50 1 GALON','TP Brake Fluid PINTA 12 OZ','TP Power Steering F PINTA 12 OZ','Prodin Activador Electrolitico 18oz','Prodin Agua Destilada 18oz'],
-      'Accesorios': ['PLUMILLAS BOSCH','Garantía x Lluvia','TP Fuel Injector PINTA 12 OZ'],
-    }
     function getCategoria(desc) {
-      for (const [cat, productos] of Object.entries(CATEGORIAS)) {
-        if (productos.includes(desc)) return cat
-      }
+      const d = desc.toUpperCase()
+      // Lubricantes y automotriz
+      if (d.includes('HELIX') || d.includes('RIMULA') || d.includes('SHELL ADVANCE') || d.includes('SHELL SPIRAX') || d.includes('UNO ULTRA') || d.includes('UNO FORZA') || d.includes('UNO IMPULSE') || d.includes('UNO SYNCHRON') || d.includes('FORZA EURO') || d.includes('LIQUIDO DE FRENOS') || d.includes('POWER STEERING') || d.includes('REFRIGERANTE') || d.includes('TOPGUARD') || d.includes('TOP GUARD') || d.includes('TP COOLANT') || d.includes('TP BRAKE') || d.includes('PRODIN') || d.includes('PLUMILLAS') || d.includes('GARANTIA') || d.includes('GARANTÍA')) return 'Lubricantes y automotriz'
+      // Hot dogs y comida preparada
+      if (d.includes('DOG') || d.includes('HOT DOG') || d.includes('PIZZA') || d.includes('NACHOS') || d.includes('CROISSANT') || d.includes('MUFFIN') || d.includes('SANDWICH') || d.includes('SAND ') || d.includes('CIABATTA') || d.includes('DONA') || d.includes('PAN ') || d.includes('POLLONAZO') || d.includes('BISTEQUESO') || d.includes('SMOOTHIE')) return 'Comida preparada'
+      // Bebidas gaseosas y aguas
+      if (d.includes('COCA') || d.includes('PEPSI') || d.includes('SPRITE') || d.includes('FANTA') || d.includes('AGUA ') || d.includes('AGUA PURA') || d.includes('SALVAVIDAS') || d.includes('DASANI') || d.includes('HIDRAVIDA') || d.includes('SALUTARIS') || d.includes('GATORADE') || d.includes('POWERADE') || d.includes('RED BULL') || d.includes('MONSTER') || d.includes('SOBE') || d.includes('JUGOS')) return 'Bebidas'
+      // Cervezas y licores
+      if (d.includes('GALLO') || d.includes('CORONA') || d.includes('CABRO') || d.includes('CERVEZA') || d.includes('MICHELADA') || d.includes('MIX PARA MICHELADA') || d.includes('MONTECARLO') || d.includes('JAGER') || d.includes('PACK GALLO')) return 'Cervezas y licores'
+      // Cigarros y vapes
+      if (d.includes('MARLBORO') || d.includes('PALL MALL') || d.includes('TEREA') || d.includes('VUSE') || d.includes('CIGARRO') || d.includes('ELECTRONICO') || d.includes('CAJETILLA')) return 'Cigarros y vapes'
+      // Snacks y dulces
+      if (d.includes('PAPALINAS') || d.includes('LAYS') || d.includes('OREO') || d.includes('CHIKY') || d.includes('GALLETA') || d.includes('BOLSONA') || d.includes('SEÑORIAL') || d.includes('TRIDENT') || d.includes('CHICLE')) return 'Snacks y dulces'
+      // Café
+      if (d.includes('CAFE') || d.includes('CAPPUCCINO') || d.includes('CAFÉ')) return 'Café'
+      // Hielo y otros
+      if (d.includes('HIELO')) return 'Otros'
       return 'Otros'
     }
     const mapa = {}
