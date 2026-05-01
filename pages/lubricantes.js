@@ -18,6 +18,8 @@ const PRODUCTOS_INVENTARIO = new Set([
   'HELIX ULTRA 5W-30 LITRO', 'HELIX ULTRA 5W-30 GALÓN', 'HELIX ULTRA 5W-40 LITRO',
   'HELIX ULTRA 5W-40 GALÓN', 'UNO Ultra 15W-40 1 GALON', 'REFRIGERANTE TOP GUARD',
   'SHELL SPIRAX S3 ATF MD3 LITRO', 'SHELL ADVANCE SAE 10W-40 ULTRA',
+  'Prodin Activador Electrolitico 18oz', 'Prodin Agua Destilada 18oz',
+  'PLUMILLAS BOSCH', 'Garantía x Lluvia',
 ])
 
 function getAyerGuatemala() {
@@ -79,13 +81,11 @@ export default function Lubricantes({ session }) {
   async function cargarAyer(eid) {
     setCargandoAyer(true)
     const ayer = getAyerGuatemala()
-    console.log('cargarAyer - eid:', eid, 'ayer:', ayer)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('facturas_fel_items')
       .select('descripcion, cantidad, total')
       .eq('estacion_id', eid)
       .eq('fecha', ayer)
-    console.log('resultado data:', data, 'error:', error)
     const mapa = {}
     for (const item of (data || [])) {
       if (!PRODUCTOS_INVENTARIO.has(item.descripcion)) continue
