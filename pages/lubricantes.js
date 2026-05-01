@@ -79,11 +79,13 @@ export default function Lubricantes({ session }) {
   async function cargarAyer(eid) {
     setCargandoAyer(true)
     const ayer = getAyerGuatemala()
-    const { data } = await supabase
+    console.log('cargarAyer - eid:', eid, 'ayer:', ayer)
+    const { data, error } = await supabase
       .from('facturas_fel_items')
       .select('descripcion, cantidad, total')
       .eq('estacion_id', eid)
       .eq('fecha', ayer)
+    console.log('resultado data:', data, 'error:', error)
     const mapa = {}
     for (const item of (data || [])) {
       if (!PRODUCTOS_INVENTARIO.has(item.descripcion)) continue
