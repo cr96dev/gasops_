@@ -95,40 +95,22 @@ export default function Reportes({ session }) {
       // ── LUBRICANTES ──
       if (seccionesSeleccionadas.lubricantes) {
         setProgreso('Cargando lubricantes...')
-        const { data: lubricantes } = await supabase.from('ventas_lubricantes')
-          .select('*, estaciones(nombre), ventas_lubricantes_detalle(*)')
+        const { data: lubItems } = await supabase.from('facturas_fel_items')
+          .select('descripcion, cantidad, total, precio_unitario, fecha, estacion_id, estaciones(nombre)')
           .gte('fecha', fechaInicio).lte('fecha', fechaFin)
           .order('fecha', { ascending: false })
 
-        const filas = []
-        ;(lubricantes || []).forEach(l => {
-          ;(l.ventas_lubricantes_detalle || []).forEach(d => {
-            filas.push({
-              Estación: l.estaciones?.nombre || '',
-              Fecha: l.fecha,
-              SKU: d.sku,
-              Producto: d.nombre,
-              Cantidad: parseFloat(d.cantidad||0),
-              'Precio unitario (Q)': parseFloat(d.precio_unitario||0),
-              'Subtotal (Q)': parseFloat(d.subtotal||0),
-              'Total venta (Q)': parseFloat(l.total_venta||0),
-              'Neonet (Q)': parseFloat(l.neonet||0),
-              'Efectivo (Q)': parseFloat(l.efectivo||0),
-              Notas: l.notas || ''
-            })
-          })
-          if (!l.ventas_lubricantes_detalle || l.ventas_lubricantes_detalle.length === 0) {
-            filas.push({
-              Estación: l.estaciones?.nombre || '',
-              Fecha: l.fecha,
-              SKU: '', Producto: '', Cantidad: 0, 'Precio unitario (Q)': 0, 'Subtotal (Q)': 0,
-              'Total venta (Q)': parseFloat(l.total_venta||0),
-              'Neonet (Q)': parseFloat(l.neonet||0),
-              'Efectivo (Q)': parseFloat(l.efectivo||0),
-              Notas: l.notas || ''
-            })
-          }
-        })
+        const EXCLUIR = new Set(['Ajuste de Distribución equitativa del mes de abril de 2026.'])
+        const filas = (lubItems || [])
+          .filter(i => !EXCLUIR.has(i.descripcion))
+          .map(i => ({
+            Estación: i.estaciones?.nombre || '',
+            Fecha: i.fecha,
+            Producto: i.descripcion || '',
+            Cantidad: parseFloat(i.cantidad||0),
+            'Precio unitario (Q)': parseFloat(i.precio_unitario||0),
+            'Total (Q)': parseFloat(i.total||0),
+          }))
 
         const ws = XLSX.utils.json_to_sheet(filas)
         aplicarEstilos(ws, filas.length)
@@ -190,15 +172,17 @@ export default function Reportes({ session }) {
         setProgreso('Cargando inventario...')
         const { data: inventario } = await supabase.from('inventario')
           .select('*, estaciones(nombre)')
-          .order('created_at', { ascending: false })
+          .order('estaciones(nombre)', { ascending: true })
 
         const filas = (inventario || []).map(i => ({
           Estación: i.estaciones?.nombre || '',
-          Fecha: i.created_at?.split('T')[0] || '',
           Producto: i.producto || '',
-          Cantidad: i.cantidad || 0,
+          Categoría: i.categoria || '',
+          'Stock actual': parseFloat(i.stock_actual || 0),
+          'Stock mínimo': parseFloat(i.stock_minimo || 0),
           Unidad: i.unidad || '',
-          Notas: i.notas || ''
+          Estado: parseFloat(i.stock_actual || 0) <= parseFloat(i.stock_minimo || 0) ? 'Bajo stock' : 'OK',
+          'Última actualización': i.updated_at?.split('T')[0] || ''
         }))
 
         const ws = XLSX.utils.json_to_sheet(filas)
