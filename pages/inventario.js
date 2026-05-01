@@ -398,7 +398,7 @@ export default function Inventario({ session }) {
                   </table>
                   {inventarioFiltrado.length === 0 && <div className="px-5 py-6 text-center text-xs text-gray-400">Sin resultados</div>}
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Haz clic en cualquier número para editarlo. El stock se actualiza automáticamente con ventas y entregas.</p>
+                {perfil?.rol === 'admin' && <p className="text-xs text-gray-400 mt-2">Haz clic en cualquier número para editarlo. El stock se actualiza automáticamente con ventas y entregas.</p>}
               </>
             )}
           </>
@@ -504,13 +504,22 @@ export default function Inventario({ session }) {
               <div className="bg-red-50 border border-red-100 rounded-xl px-5 py-3 text-xs text-red-700">{errorEntrega}</div>
             )}
 
-            <div className="flex justify-end">
-              <button type="submit" disabled={guardandoEntrega || itemsEntrega.length === 0}
-                className="bg-blue-600 text-white text-sm px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
-                {guardandoEntrega && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                {guardandoEntrega ? 'Guardando...' : `Registrar entrega (${itemsEntrega.length} productos)`}
-              </button>
-            </div>
+            <button type="submit" disabled={guardandoEntrega || itemsEntrega.length === 0}
+              className="w-full bg-green-600 text-white font-semibold text-base py-4 rounded-2xl hover:bg-green-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-lg shadow-green-200 flex items-center justify-center gap-3">
+              {guardandoEntrega ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Guardando entrega...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{itemsEntrega.length > 0 ? `Confirmar entrega — ${itemsEntrega.length} producto${itemsEntrega.length > 1 ? 's' : ''}` : 'Agrega productos para continuar'}</span>
+                </>
+              )}
+            </button>
           </form>
         )}
 
