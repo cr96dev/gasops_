@@ -20,8 +20,9 @@ function categorizarItem(descripcion) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' })
-  if (req.headers.authorization !== `Bearer ${process.env.INTERNAL_API_SECRET}`) {
+  if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Use POST or GET' })
+  const auth = req.headers.authorization
+  if (auth !== `Bearer ${process.env.INTERNAL_API_SECRET}` && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 

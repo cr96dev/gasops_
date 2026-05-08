@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/wsm/recalcular",
-      "schedule": "0 7 * * *"
+      "path": "/api/qbo/sync/daily",
+      "schedule": "5 6 * * *"
     }
   ]
 }
