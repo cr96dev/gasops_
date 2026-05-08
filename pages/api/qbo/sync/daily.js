@@ -1,5 +1,5 @@
 // pages/api/qbo/sync/daily.js
-// Endpoint principal: procesa todas las ventas de combustible de un dia
+// Endpoint principal: procesa ventas de combustible + lubricantes de un dia
 // POST /api/qbo/sync/daily?fecha=YYYY-MM-DD
 // Si no se da fecha, usa "ayer"
 
@@ -13,30 +13,24 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  // Default: ayer
   const ayer = new Date()
   ayer.setDate(ayer.getDate() - 1)
   const fechaDefault = ayer.toISOString().split('T')[0]
   const fecha = req.query.fecha || fechaDefault
 
   const startTime = Date.now()
-  const log = []
   const resultados = {
-    combustible: { exitos: 0, errores: 0, omitidos: 0, detalle: [] }
+    combustible: { exitos: 0, errores: 0, omitidos: 0, detalle: [] },
+    lubricantes: { exitos: 0, errores: 0, omitidos: 0, detalle: [] }
   }
 
   try {
-    log.push(`[Sync] Iniciando sync para ${fecha}`)
-
-    // Cargar todos los mapeos de una sola vez
+    // Cargar mapeos de una sola vez
     const [estacionesRes, customersRes, itemsRes] = await Promise.all([
       supabaseAdmin.from('qbo_mapping_estaciones').select('*').eq('activo', true),
       supabaseAdmin.from('qbo_mapping_customers').select('*').eq('activo', true).eq('qbo_customer_type', 'CF_BY_STATION'),
-      supabaseAdmin.from('qbo_mapping_skus').select('*').in('sku', ['COMB-REG', 'COMB-PREM', 'COMB-DIESEL', 'COMB-DIESELP'])
+      supabaseAdmin.from('qbo_mapping_skus').select('*')
     ])
-
-    const estacionesByCodigo = {}
-    estacionesRes.data?.forEach(e => { estacionesByCodigo[e.estacion_codigo] = e })
 
     const estacionesByGasOpsId = {}
     estacionesRes.data?.forEach(e => { if (e.gasops_estacion_id) estacionesByGasOpsId[e.gasops_estacion_id] = e })
@@ -47,42 +41,30 @@ export default async function handler(req, res) {
     const itemsBySku = {}
     itemsRes.data?.forEach(i => { itemsBySku[i.sku] = i })
 
-    log.push(`[Sync] Mapeos cargados: ${estacionesRes.data?.length} estaciones, ${customersRes.data?.length} customers CF, ${itemsRes.data?.length} items`)
-
     // ============================================
-    // COMBUSTIBLE (1 SR por estacion-dia)
+    // 1. COMBUSTIBLE (1 SR por estacion-dia)
     // ============================================
-    const { data: ventas } = await supabaseAdmin
+    const { data: ventasCombustible } = await supabaseAdmin
       .from('ventas')
       .select('*')
       .eq('fecha', fecha)
       .eq('qbo_processed', false)
 
-    log.push(`[Sync] Combustible: ${ventas?.length || 0} ventas pendientes`)
-
-    for (const venta of ventas || []) {
+    for (const venta of ventasCombustible || []) {
       const estacion = estacionesByGasOpsId[venta.estacion_id]
       if (!estacion) {
         resultados.combustible.errores++
-        resultados.combustible.detalle.push({
-          venta_id: venta.id,
-          error: `Estacion no mapeada: ${venta.estacion_id}`
-        })
+        resultados.combustible.detalle.push({ venta_id: venta.id, error: 'Estacion no mapeada' })
         continue
       }
 
       const customer = customersByEstacion[estacion.estacion_codigo]
       if (!customer) {
         resultados.combustible.errores++
-        resultados.combustible.detalle.push({
-          venta_id: venta.id,
-          estacion: estacion.estacion_nombre,
-          error: 'Customer CF no mapeado'
-        })
+        resultados.combustible.detalle.push({ estacion: estacion.estacion_nombre, error: 'Customer CF no mapeado' })
         continue
       }
 
-      // Construir lineas
       const lines = []
       const productos = [
         { sku: 'COMB-REG', litros: venta.regular_litros, ingresos: venta.regular_ingresos, nombre: 'Combustible Regular' },
@@ -109,15 +91,11 @@ export default async function handler(req, res) {
 
       if (lines.length === 0) {
         resultados.combustible.omitidos++
-        // Marcar como procesado igual (sin SR) para no reintentar
-        await supabaseAdmin
-          .from('ventas')
-          .update({
-            qbo_processed: true,
-            qbo_sales_receipt_id: 'SKIPPED-NO-INCOME',
-            qbo_processed_at: new Date().toISOString()
-          })
-          .eq('id', venta.id)
+        await supabaseAdmin.from('ventas').update({
+          qbo_processed: true,
+          qbo_sales_receipt_id: 'SKIPPED-NO-INCOME',
+          qbo_processed_at: new Date().toISOString()
+        }).eq('id', venta.id)
         continue
       }
 
@@ -133,16 +111,12 @@ export default async function handler(req, res) {
         const result = await qboApi('POST', '/salesreceipt', salesReceipt)
         const sr = result.SalesReceipt
 
-        await supabaseAdmin
-          .from('ventas')
-          .update({
-            qbo_processed: true,
-            qbo_sales_receipt_id: sr.Id,
-            qbo_processed_at: new Date().toISOString()
-          })
-          .eq('id', venta.id)
+        await supabaseAdmin.from('ventas').update({
+          qbo_processed: true,
+          qbo_sales_receipt_id: sr.Id,
+          qbo_processed_at: new Date().toISOString()
+        }).eq('id', venta.id)
 
-        // Audit log
         await supabaseAdmin.from('qbo_sync_audit').insert({
           fecha_proceso: fecha,
           bucket_key: `${fecha}|${estacion.estacion_codigo}|Combustible|CF`,
@@ -165,28 +139,124 @@ export default async function handler(req, res) {
           monto: sr.TotalAmt,
           lineas: lines.length
         })
-
       } catch (err) {
         resultados.combustible.errores++
-        resultados.combustible.detalle.push({
-          estacion: estacion.estacion_nombre,
-          error: err.message
-        })
+        resultados.combustible.detalle.push({ estacion: estacion.estacion_nombre, error: err.message })
+      }
+    }
 
-        // Audit log de error
+    // ============================================
+    // 2. LUBRICANTES (1 SR por estacion-dia)
+    // ============================================
+    const { data: ventasLub } = await supabaseAdmin
+      .from('ventas_lubricantes')
+      .select('*, ventas_lubricantes_detalle(*)')
+      .eq('fecha', fecha)
+      .eq('qbo_processed', false)
+
+    for (const venta of ventasLub || []) {
+      const estacion = estacionesByGasOpsId[venta.estacion_id]
+      if (!estacion) {
+        resultados.lubricantes.errores++
+        resultados.lubricantes.detalle.push({ venta_id: venta.id, error: 'Estacion no mapeada' })
+        continue
+      }
+
+      const customer = customersByEstacion[estacion.estacion_codigo]
+      if (!customer) {
+        resultados.lubricantes.errores++
+        resultados.lubricantes.detalle.push({ estacion: estacion.estacion_nombre, error: 'Customer CF no mapeado' })
+        continue
+      }
+
+      const totalVenta = parseFloat(venta.total_venta || 0)
+      if (totalVenta <= 0) {
+        resultados.lubricantes.omitidos++
+        await supabaseAdmin.from('ventas_lubricantes').update({
+          qbo_processed: true,
+          qbo_sales_receipt_id: 'SKIPPED-NO-INCOME',
+          qbo_processed_at: new Date().toISOString()
+        }).eq('id', venta.id)
+        continue
+      }
+
+      const detalles = venta.ventas_lubricantes_detalle || []
+      const lines = []
+
+      if (detalles.length > 0) {
+        // CON DETALLE: 1 linea por SKU
+        for (const d of detalles) {
+          lines.push({
+            DetailType: 'SalesItemLineDetail',
+            Amount: parseFloat(d.subtotal),
+            Description: `${d.nombre || d.sku} x${d.cantidad}`,
+            SalesItemLineDetail: {
+              ItemRef: { value: itemsBySku['LUB-GEN'].qbo_item_id },
+              Qty: parseFloat(d.cantidad || 1),
+              UnitPrice: parseFloat(d.precio_unitario || d.subtotal),
+              ClassRef: { value: estacion.qbo_class_id }
+            }
+          })
+        }
+      } else {
+        // SIN DETALLE: 1 linea generica
+        lines.push({
+          DetailType: 'SalesItemLineDetail',
+          Amount: totalVenta,
+          Description: `Lubricantes - venta agregada del dia`,
+          SalesItemLineDetail: {
+            ItemRef: { value: itemsBySku['LUB-GEN'].qbo_item_id },
+            Qty: 1,
+            UnitPrice: totalVenta,
+            ClassRef: { value: estacion.qbo_class_id }
+          }
+        })
+      }
+
+      const salesReceipt = {
+        TxnDate: fecha,
+        CustomerRef: { value: customer.qbo_customer_id },
+        ClassRef: { value: estacion.qbo_class_id },
+        Line: lines,
+        PrivateNote: `Auto: lubricantes ${estacion.estacion_codigo} ${fecha}`
+      }
+
+      try {
+        const result = await qboApi('POST', '/salesreceipt', salesReceipt)
+        const sr = result.SalesReceipt
+
+        await supabaseAdmin.from('ventas_lubricantes').update({
+          qbo_processed: true,
+          qbo_sales_receipt_id: sr.Id,
+          qbo_processed_at: new Date().toISOString()
+        }).eq('id', venta.id)
+
         await supabaseAdmin.from('qbo_sync_audit').insert({
           fecha_proceso: fecha,
-          bucket_key: `${fecha}|${estacion.estacion_codigo}|Combustible|CF`,
+          bucket_key: `${fecha}|${estacion.estacion_codigo}|Lubricantes|CF`,
           estacion: estacion.estacion_codigo,
-          categoria: 'Combustible',
+          categoria: 'Lubricantes',
           customer_type: 'CF',
           customer_nit: customer.nit,
-          fel_count: 1,
+          fel_count: detalles.length || 1,
           fel_ids: [venta.id],
-          status: 'FAILED',
-          error_message: err.message,
+          monto_total: parseFloat(sr.TotalAmt),
+          qbo_sales_receipt_id: sr.Id,
+          status: 'SUCCESS',
           attempts: 1
         })
+
+        resultados.lubricantes.exitos++
+        resultados.lubricantes.detalle.push({
+          estacion: estacion.estacion_nombre,
+          sr_id: sr.Id,
+          monto: sr.TotalAmt,
+          lineas: lines.length,
+          con_detalle: detalles.length > 0
+        })
+      } catch (err) {
+        resultados.lubricantes.errores++
+        resultados.lubricantes.detalle.push({ estacion: estacion.estacion_nombre, error: err.message })
       }
     }
 
@@ -201,11 +271,6 @@ export default async function handler(req, res) {
     })
 
   } catch (err) {
-    console.error('[Sync] Error fatal:', err.message)
-    return res.status(500).json({
-      error: err.message,
-      log,
-      resultados
-    })
+    return res.status(500).json({ error: err.message, resultados })
   }
 }
