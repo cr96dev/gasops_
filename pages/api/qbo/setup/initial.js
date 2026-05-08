@@ -1,13 +1,11 @@
 // pages/api/qbo/setup/initial.js
 // Setup inicial: crea customers, items, classes en la sandbox QBO
-// y actualiza los mapeos en Supabase con los IDs reales
 
 import { qboApi, qboQuery } from '../../../../lib/qbo/apiClient'
 import { supabaseAdmin } from '../../../../lib/qbo/supabaseAdmin'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' })
-
   if (req.headers.authorization !== `Bearer ${process.env.INTERNAL_API_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
@@ -15,178 +13,101 @@ export default async function handler(req, res) {
   const log = []
 
   try {
-    // ============================================
-    // PASO 1: Habilitar Classes en QBO
-    // ============================================
-    log.push('[1/4] Verificando preferencias QBO...')
-    const prefs = await qboApi('GET', '/preferences')
-    const trackByClass = prefs.Preferences?.AccountingInfoPrefs?.TrackDepartments || false
-    log.push(`Tracking by class: ${trackByClass} (manual en UI si necesario)`)
-
-    // ============================================
-    // PASO 2: Crear Classes (estaciones)
-    // ============================================
-    log.push('[2/4] Creando Classes para 13 estaciones...')
-
+    // PASO 1: Classes
+    log.push('[1/3] Creando Classes...')
     const { data: estaciones } = await supabaseAdmin
-      .from('qbo_mapping_estaciones')
-      .select('*')
-      .eq('activo', true)
-
-    const classesCreados = []
+      .from('qbo_mapping_estaciones').select('*').eq('activo', true)
 
     for (const est of estaciones) {
       try {
-        // Verificar si ya existe
         const existing = await qboQuery(`SELECT * FROM Class WHERE Name = '${est.estacion_nombre}'`)
-
         let classId
         if (existing.Class && existing.Class.length > 0) {
           classId = existing.Class[0].Id
-          log.push(`  - "${est.estacion_nombre}" ya existe (ID ${classId})`)
+          log.push(`  - "${est.estacion_nombre}" ya existe (${classId})`)
         } else {
-          const created = await qboApi('POST', '/class', {
-            Name: est.estacion_nombre,
-            Active: true
-          })
+          const created = await qboApi('POST', '/class', { Name: est.estacion_nombre, Active: true })
           classId = created.Class.Id
-          log.push(`  + "${est.estacion_nombre}" creada (ID ${classId})`)
+          log.push(`  + "${est.estacion_nombre}" creada (${classId})`)
         }
-
-        // Actualizar mapeo en Supabase
-        await supabaseAdmin
-          .from('qbo_mapping_estaciones')
-          .update({ qbo_class_id: classId })
-          .eq('estacion_codigo', est.estacion_codigo)
-
-        classesCreados.push({ estacion: est.estacion_nombre, qbo_class_id: classId })
+        await supabaseAdmin.from('qbo_mapping_estaciones').update({ qbo_class_id: classId }).eq('estacion_codigo', est.estacion_codigo)
       } catch (err) {
         log.push(`  ! Error en "${est.estacion_nombre}": ${err.message}`)
       }
     }
 
-    // ============================================
-    // PASO 3: Crear Customers
-    // ============================================
-    log.push('[3/4] Creando Customers...')
-
+    // PASO 2: Customers
+    log.push('[2/3] Creando Customers...')
     const { data: customers } = await supabaseAdmin
-      .from('qbo_mapping_customers')
-      .select('*')
-      .eq('activo', true)
-
-    const customersCreados = []
+      .from('qbo_mapping_customers').select('*').eq('activo', true)
 
     for (const cust of customers) {
       try {
         const existing = await qboQuery(`SELECT * FROM Customer WHERE DisplayName = '${cust.nombre.replace(/'/g, "''")}'`)
-
         let customerId
         if (existing.Customer && existing.Customer.length > 0) {
           customerId = existing.Customer[0].Id
-          log.push(`  - "${cust.nombre}" ya existe (ID ${customerId})`)
+          log.push(`  - "${cust.nombre}" ya existe (${customerId})`)
         } else {
-          const created = await qboApi('POST', '/customer', {
-            DisplayName: cust.nombre,
-            CompanyName: cust.nombre,
-            Active: true
-          })
+          const created = await qboApi('POST', '/customer', { DisplayName: cust.nombre, CompanyName: cust.nombre, Active: true })
           customerId = created.Customer.Id
-          log.push(`  + "${cust.nombre}" creado (ID ${customerId})`)
+          log.push(`  + "${cust.nombre}" creado (${customerId})`)
         }
-
-        await supabaseAdmin
-          .from('qbo_mapping_customers')
-          .update({ qbo_customer_id: customerId })
-          .eq('nit', cust.nit)
-
-        customersCreados.push({ nombre: cust.nombre, qbo_customer_id: customerId })
+        await supabaseAdmin.from('qbo_mapping_customers').update({ qbo_customer_id: customerId }).eq('nit', cust.nit)
       } catch (err) {
         log.push(`  ! Error en "${cust.nombre}": ${err.message}`)
       }
     }
 
-    // ============================================
-    // PASO 4: Crear Items
-    // ============================================
-    log.push('[4/4] Creando Items...')
+    // PASO 3: Items (combustibles + tienda macro + lubricantes)
+    log.push('[3/3] Creando Items...')
 
-    const ITEMS_CATALOGO = [
-      // Combustibles
-      { sku: 'COMB-REG',     nombre: 'Combustible Regular',     categoria: 'Combustible' },
-      { sku: 'COMB-PREM',    nombre: 'Combustible Premium',     categoria: 'Combustible' },
-      { sku: 'COMB-DIESEL',  nombre: 'Diesel',                  categoria: 'Combustible' },
-      { sku: 'COMB-DIESELP', nombre: 'Diesel Plus',             categoria: 'Combustible' },
-      // Tienda
-      { sku: 'TIENDA-GEN',   nombre: 'Productos Tienda',        categoria: 'Tienda' },
-      // Lubricantes
-      { sku: 'LUB-GEN',      nombre: 'Lubricantes',             categoria: 'Lubricantes' },
-    ]
-
-    const itemsCreados = []
-
-    // Necesitamos un Income Account para asociar items
     const incomeAccts = await qboQuery(`SELECT * FROM Account WHERE AccountType = 'Income' MAXRESULTS 5`)
     const incomeAccountId = incomeAccts.Account?.[0]?.Id
+    if (!incomeAccountId) throw new Error('No Income Account')
 
-    if (!incomeAccountId) {
-      throw new Error('No se encontro ninguna Income Account en la sandbox')
-    }
+    // Lee TODOS los items de qbo_mapping_skus (incluye los 8 nuevos de tienda)
+    const { data: skusToCreate } = await supabaseAdmin
+      .from('qbo_mapping_skus').select('*').eq('activo', true)
 
-    for (const it of ITEMS_CATALOGO) {
+    for (const sku of skusToCreate) {
       try {
-        const existing = await qboQuery(`SELECT * FROM Item WHERE Name = '${it.nombre.replace(/'/g, "''")}'`)
-
+        const itemName = sku.qbo_item_name || sku.descripcion
+        const existing = await qboQuery(`SELECT * FROM Item WHERE Name = '${itemName.replace(/'/g, "''")}'`)
         let itemId
         if (existing.Item && existing.Item.length > 0) {
           itemId = existing.Item[0].Id
-          log.push(`  - "${it.nombre}" ya existe (ID ${itemId})`)
+          log.push(`  - "${itemName}" ya existe (${itemId})`)
         } else {
           const created = await qboApi('POST', '/item', {
-            Name: it.nombre,
+            Name: itemName,
             Type: 'Service',
             IncomeAccountRef: { value: incomeAccountId },
             Active: true
           })
           itemId = created.Item.Id
-          log.push(`  + "${it.nombre}" creado (ID ${itemId})`)
+          log.push(`  + "${itemName}" creado (${itemId})`)
         }
-
-        // Upsert en mapping_skus
         await supabaseAdmin
           .from('qbo_mapping_skus')
-          .upsert({
-            sku: it.sku,
-            descripcion: it.nombre,
-            categoria: it.categoria,
-            qbo_item_id: itemId,
-            qbo_item_name: it.nombre,
-            iva_rate: 12.00,
-            activo: true
-          })
-
-        itemsCreados.push({ sku: it.sku, qbo_item_id: itemId })
+          .update({ qbo_item_id: itemId })
+          .eq('sku', sku.sku)
       } catch (err) {
-        log.push(`  ! Error en "${it.nombre}": ${err.message}`)
+        log.push(`  ! Error en "${sku.sku}": ${err.message}`)
       }
     }
 
     return res.status(200).json({
       success: true,
       summary: {
-        classes_creadas: classesCreados.length,
-        customers_creados: customersCreados.length,
-        items_creados: itemsCreados.length,
-        income_account_usado: incomeAccountId
+        classes: estaciones.length,
+        customers: customers.length,
+        items: skusToCreate.length,
+        income_account: incomeAccountId
       },
       log
     })
-
   } catch (err) {
-    console.error('[QBO Setup] Error:', err.message)
-    return res.status(500).json({
-      error: err.message,
-      log
-    })
+    return res.status(500).json({ error: err.message, log })
   }
 }
