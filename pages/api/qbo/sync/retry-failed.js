@@ -84,7 +84,7 @@ export default async function handler(req, res) {
           error_message: 'Estacion o customer no encontrado en retry',
           updated_at: new Date().toISOString()
         }).eq('id', audit.id)
-        resultados[categoria.toLowerCase()]?.errores++
+        if (resultados[categoria.toLowerCase()]) resultados[categoria.toLowerCase()].errores++
         continue
       }
 
