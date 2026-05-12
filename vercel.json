@@ -4,5 +4,10 @@
       "path": "/api/qbo/sync/daily",
       "schedule": "5 6 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "pages/api/qbo/sync/daily.js": {
+      "maxDuration": 60
+    }
+  }
 }
