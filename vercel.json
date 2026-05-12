@@ -3,10 +3,17 @@
     {
       "path": "/api/qbo/sync/daily",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/qbo/sync/retry-failed",
+      "schedule": "30 10 * * *"
     }
   ],
   "functions": {
     "pages/api/qbo/sync/daily.js": {
+      "maxDuration": 60
+    },
+    "pages/api/qbo/sync/retry-failed.js": {
       "maxDuration": 60
     }
   }
