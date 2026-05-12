@@ -1,49 +1,29 @@
 // pages/api/qbo/auth/callback.js
-// Recibe el authorization code de Intuit y lo intercambia por tokens
-// GET /api/qbo/auth/callback?code=XXX&realmId=YYY&state=ZZZ
+// OAuth callback para QBO SANDBOX
+// Limpio - sin diagnostic logs, con CSRF estricto
 
 import { supabaseAdmin } from '../../../../lib/qbo/supabaseAdmin'
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
   const { code, realmId, state, error } = req.query
 
-  if (error) {
-    console.error('[QBO Auth] Error from Intuit:', error)
-    return res.status(400).send(`Error de Intuit: ${error}`)
-  }
+  if (error) return res.status(400).send(`Error de Intuit: ${error}`)
+  if (!code || !realmId) return res.status(400).send('Faltan parametros (code o realmId)')
 
-  // CSRF state check - log warning but don't block (cookies pueden perderse en redirects)
-  const cookies = req.headers.cookie?.split(';').reduce((acc, c) => {
-    const [k, v] = c.trim().split('=')
-    acc[k] = v
-    return acc
-  }, {}) || {}
-
-  if (!state) {
-    console.error('[QBO Auth] No state parameter')
-    return res.status(400).send('Falta parametro state')
-  }
-
-  if (cookies.qbo_oauth_state && state !== cookies.qbo_oauth_state) {
-    console.warn('[QBO Auth] State cookie mismatch - continuing anyway in sandbox')
-    // En production, esto deberia bloquear
-  } else if (!cookies.qbo_oauth_state) {
-    console.warn('[QBO Auth] No state cookie found - continuing anyway')
+  // Verificar state CSRF estricto
+  const cookieState = req.cookies?.qbo_oauth_state
+  if (!cookieState || cookieState !== state) {
+    res.setHeader('Set-Cookie', 'qbo_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0')
+    return res.status(403).send('CSRF state mismatch - posible ataque de Cross-Site Request Forgery')
   }
 
   // Limpiar cookie
   res.setHeader('Set-Cookie', 'qbo_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0')
 
-  if (!code || !realmId) {
-    return res.status(400).send('Faltan parametros (code o realmId)')
-  }
-
   try {
-    console.log(`[QBO Auth] Exchanging code for tokens. RealmId: ${realmId}`)
+    const redirectUri = process.env.QBO_REDIRECT_URI
 
     const tokenResponse = await fetch(
       'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
@@ -59,24 +39,17 @@ export default async function handler(req, res) {
         body: new URLSearchParams({
           grant_type: 'authorization_code',
           code: code,
-          redirect_uri: process.env.QBO_REDIRECT_URI
+          redirect_uri: redirectUri
         }).toString()
       }
     )
 
-    const data = await tokenResponse.json()
-
     if (!tokenResponse.ok) {
-      console.error('[QBO Auth] Token exchange failed:', JSON.stringify(data))
-      return res.status(500).send(`Error: ${data.error_description || data.error || 'Unknown'}`)
+      return res.status(500).send('Token exchange failed')
     }
 
-    const {
-      access_token,
-      refresh_token,
-      expires_in,
-      x_refresh_token_expires_in
-    } = data
+    const data = await tokenResponse.json()
+    const { access_token, refresh_token, expires_in, x_refresh_token_expires_in } = data
 
     const accessExpires = new Date(Date.now() + expires_in * 1000).toISOString()
     const refreshExpires = new Date(Date.now() + x_refresh_token_expires_in * 1000).toISOString()
@@ -89,43 +62,29 @@ export default async function handler(req, res) {
         refresh_token,
         access_token_expires_at: accessExpires,
         refresh_token_expires_at: refreshExpires,
+        is_production: false,
         updated_at: new Date().toISOString()
       }, { onConflict: 'realm_id' })
 
     if (dbError) {
-      console.error('[QBO Auth] DB error:', dbError)
-      return res.status(500).send(`Error guardando tokens: ${dbError.message}`)
+      return res.status(500).send('Error guardando tokens')
     }
-
-    console.log(`[QBO Auth] Tokens guardados exitosamente. Realm ID: ${realmId}`)
 
     res.setHeader('Content-Type', 'text/html')
     res.send(`
       <html>
-        <head><title>QBO Conectado</title></head>
         <body style="font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #2ca01c;">QuickBooks Conectado</h1>
-          <p>La integracion con QuickBooks Online se ha establecido correctamente.</p>
+          <h1 style="color: #2ca01c;">QuickBooks Sandbox Conectado</h1>
+          <p>La integracion con sandbox se ha establecido correctamente.</p>
           <ul>
-            <li><strong>Realm ID:</strong> ${realmId}</li>
-            <li><strong>Access token expira:</strong> ${accessExpires}</li>
-            <li><strong>Refresh token expira:</strong> ${refreshExpires}</li>
+            <li>Realm ID: <strong>${realmId}</strong></li>
+            <li>Modo: <strong>SANDBOX (datos de prueba)</strong></li>
           </ul>
-          <a href="/admin">Ir al panel admin</a>
         </body>
       </html>
     `)
 
   } catch (err) {
-    console.error('[QBO Auth] Error inesperado:', err.message, err.stack)
-    res.status(500).send(`
-      <html>
-        <body style="font-family: sans-serif; padding: 40px;">
-          <h1 style="color: red;">Error en autenticacion</h1>
-          <p>${err.message}</p>
-          <a href="/api/qbo/auth/connect">Reintentar</a>
-        </body>
-      </html>
-    `)
+    return res.status(500).send('Error procesando callback')
   }
 }
