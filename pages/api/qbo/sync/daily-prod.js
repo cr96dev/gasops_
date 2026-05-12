@@ -1,8 +1,8 @@
 // pages/api/qbo/sync/daily-prod.js
 // Sync diario contra QBO PRODUCTION
-// Combustible -> Deposit a Custodia Combustible Bank (329), CR Custodia Venta Combustible (1150040016)
-// Lubricantes -> Sales Receipt con TaxIncluded + TaxCode IVA General (2)
-// Tienda      -> Sales Receipt con TaxIncluded + TaxCode IVA General (2)
+// Combustible -> Deposit a Custodia Combustible Bank (329) / CR Custodia (1150040016)
+// Lubricantes -> Sales Receipt con NETO (bruto/1.12) + TaxCodeRef (2) IVA General
+// Tienda      -> Sales Receipt con NETO (bruto/1.12) + TaxCodeRef (2) IVA General
 
 import { supabaseAdmin } from '../../../../lib/qbo/supabaseAdmin'
 import { enviarReporteSync, enviarErrorFatal } from '../../../../lib/qbo/emailAlerts'
@@ -10,10 +10,15 @@ import { enviarReporteSync, enviarErrorFatal } from '../../../../lib/qbo/emailAl
 const QBO_API_BASE = 'https://quickbooks.api.intuit.com'
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
 
-// IDs production
-const CUSTODIA_BANK_ID = '329'              // "Custodia Combustible Bank"
-const CUSTODIA_LIABILITY_ID = '1150040016'  // "Custodia de Venta de Combustible"
-const TAX_CODE_IVA_GENERAL = '2'             // "IVA General" 12%
+const CUSTODIA_BANK_ID = '329'
+const CUSTODIA_LIABILITY_ID = '1150040016'
+const TAX_CODE_IVA_GENERAL = '2'
+const IVA_RATE = 0.12  // 12% IVA Guatemala
+
+// Divide monto bruto (con IVA) entre 1.12 para obtener neto (sin IVA)
+function brutoToNeto(bruto) {
+  return parseFloat((bruto / (1 + IVA_RATE)).toFixed(2))
+}
 
 function categorizarItem(descripcion) {
   const d = (descripcion || '').toUpperCase()
@@ -113,18 +118,14 @@ export default async function handler(req, res) {
     itemsRes.data?.forEach(i => { itemsBySku[i.sku] = i })
 
     // ============================================
-    // 1. COMBUSTIBLE -> DEPOSIT
+    // 1. COMBUSTIBLE -> DEPOSIT (SIN cambios, ya funciona)
     // ============================================
     const { data: ventasCombustible } = await supabaseAdmin
       .from('ventas').select('*').eq('fecha', fecha).eq('qbo_processed_prod', false)
 
     for (const venta of ventasCombustible || []) {
       const estacion = estacionesByGasOpsId[venta.estacion_id]
-      if (!estacion || !estacion.qbo_class_id_prod) {
-        resultados.combustible.errores++
-        resultados.combustible.detalle.push({ estacion: estacion?.estacion_nombre, error: 'Sin class_id_prod' })
-        continue
-      }
+      if (!estacion || !estacion.qbo_class_id_prod) { resultados.combustible.errores++; continue }
 
       const lineas = []
       const productos = [
@@ -161,11 +162,8 @@ export default async function handler(req, res) {
       }
 
       const total = lineas.reduce((s, l) => s + l.Amount, 0)
-
       if (dryRun) {
-        resultados.combustible.detalle.push({
-          estacion: estacion.estacion_nombre, lineas: lineas.length, total, dry_run: true
-        })
+        resultados.combustible.detalle.push({ estacion: estacion.estacion_nombre, lineas: lineas.length, total, dry_run: true })
         continue
       }
 
@@ -177,36 +175,22 @@ export default async function handler(req, res) {
           Line: lineas
         })
         const deposit = result.Deposit
-
         await supabaseAdmin.from('ventas').update({
           qbo_processed_prod: true,
           qbo_deposit_id_prod: deposit.Id,
           qbo_processed_at_prod: new Date().toISOString()
         }).eq('id', venta.id)
-
         await supabaseAdmin.from('qbo_sync_audit').insert({
           fecha_proceso: fecha,
           bucket_key: `${fecha}|${estacion.estacion_codigo}|Combustible|CF|PROD`,
-          estacion: estacion.estacion_codigo,
-          categoria: 'Combustible',
-          customer_type: 'CF',
-          customer_nit: 'CF-' + estacion.estacion_codigo,
-          fel_count: 1,
-          fel_ids: [venta.id],
-          monto_subtotal: parseFloat(deposit.TotalAmt),
-          monto_iva: 0,
-          monto_total: parseFloat(deposit.TotalAmt),
-          qbo_deposit_id: deposit.Id,
-          qbo_transaction_type: 'Deposit',
-          status: 'SUCCESS',
-          attempts: 1,
-          is_production: true
+          estacion: estacion.estacion_codigo, categoria: 'Combustible', customer_type: 'CF',
+          customer_nit: 'CF-' + estacion.estacion_codigo, fel_count: 1, fel_ids: [venta.id],
+          monto_subtotal: parseFloat(deposit.TotalAmt), monto_iva: 0, monto_total: parseFloat(deposit.TotalAmt),
+          qbo_deposit_id: deposit.Id, qbo_transaction_type: 'Deposit',
+          status: 'SUCCESS', attempts: 1, is_production: true
         })
-
         resultados.combustible.exitos++
-        resultados.combustible.detalle.push({
-          estacion: estacion.estacion_nombre, deposit_id: deposit.Id, monto: deposit.TotalAmt
-        })
+        resultados.combustible.detalle.push({ estacion: estacion.estacion_nombre, deposit_id: deposit.Id, monto: deposit.TotalAmt })
       } catch (err) {
         resultados.combustible.errores++
         resultados.combustible.detalle.push({ estacion: estacion.estacion_nombre, error: err.message })
@@ -214,7 +198,7 @@ export default async function handler(req, res) {
     }
 
     // ============================================
-    // 2. LUBRICANTES -> SALES RECEIPT con TaxIncluded
+    // 2. LUBRICANTES -> SALES RECEIPT con NETO + TaxCodeRef
     // ============================================
     const { data: ventasLub } = await supabaseAdmin
       .from('ventas_lubricantes').select('*, ventas_lubricantes_detalle(*)')
@@ -226,8 +210,8 @@ export default async function handler(req, res) {
       const customer = customersByEstacion[estacion.estacion_codigo]
       if (!customer || !customer.qbo_customer_id_prod) { resultados.lubricantes.errores++; continue }
 
-      const totalVenta = parseFloat(venta.total_venta || 0)
-      if (totalVenta <= 0) {
+      const totalBruto = parseFloat(venta.total_venta || 0)
+      if (totalBruto <= 0) {
         resultados.lubricantes.omitidos++
         if (!dryRun) {
           await supabaseAdmin.from('ventas_lubricantes').update({
@@ -247,25 +231,31 @@ export default async function handler(req, res) {
       const lines = []
       if (detalles.length > 0) {
         for (const d of detalles) {
+          const subtotalBruto = parseFloat(d.subtotal)
+          const subtotalNeto = brutoToNeto(subtotalBruto)
+          const qty = parseFloat(d.cantidad || 1)
           lines.push({
             DetailType: 'SalesItemLineDetail',
-            Amount: parseFloat(d.subtotal),
-            Description: `${d.nombre || d.sku} x${d.cantidad}`,
+            Amount: subtotalNeto,
+            Description: `${d.nombre || d.sku} x${qty}`,
             SalesItemLineDetail: {
               ItemRef: { value: itemIdProd },
-              Qty: parseFloat(d.cantidad || 1),
-              UnitPrice: parseFloat(d.precio_unitario || d.subtotal),
+              Qty: qty,
+              UnitPrice: brutoToNeto(parseFloat(d.precio_unitario || subtotalBruto)),
               ClassRef: { value: estacion.qbo_class_id_prod },
               TaxCodeRef: { value: TAX_CODE_IVA_GENERAL }
             }
           })
         }
       } else {
+        const neto = brutoToNeto(totalBruto)
         lines.push({
-          DetailType: 'SalesItemLineDetail', Amount: totalVenta, Description: 'Lubricantes - venta agregada',
+          DetailType: 'SalesItemLineDetail',
+          Amount: neto,
+          Description: 'Lubricantes - venta agregada',
           SalesItemLineDetail: {
             ItemRef: { value: itemIdProd },
-            Qty: 1, UnitPrice: totalVenta,
+            Qty: 1, UnitPrice: neto,
             ClassRef: { value: estacion.qbo_class_id_prod },
             TaxCodeRef: { value: TAX_CODE_IVA_GENERAL }
           }
@@ -273,8 +263,10 @@ export default async function handler(req, res) {
       }
 
       if (dryRun) {
+        const totalNetoLineas = lines.reduce((s, l) => s + l.Amount, 0)
         resultados.lubricantes.detalle.push({
-          estacion: estacion.estacion_nombre, lineas: lines.length, total: totalVenta, dry_run: true
+          estacion: estacion.estacion_nombre, lineas: lines.length,
+          total_neto: totalNetoLineas, total_bruto_esperado: totalBruto, dry_run: true
         })
         continue
       }
@@ -284,7 +276,6 @@ export default async function handler(req, res) {
           TxnDate: fecha,
           CustomerRef: { value: customer.qbo_customer_id_prod },
           ClassRef: { value: estacion.qbo_class_id_prod },
-          GlobalTaxCalculation: 'TaxIncluded',
           Line: lines,
           PrivateNote: `Auto: lubricantes ${estacion.estacion_codigo} ${fecha}`
         })
@@ -301,14 +292,19 @@ export default async function handler(req, res) {
           bucket_key: `${fecha}|${estacion.estacion_codigo}|Lubricantes|CF|PROD`,
           estacion: estacion.estacion_codigo, categoria: 'Lubricantes', customer_type: 'CF',
           customer_nit: customer.nit, fel_count: detalles.length || 1, fel_ids: [venta.id],
-          monto_subtotal: parseFloat(sr.TotalAmt), monto_iva: 0, monto_total: parseFloat(sr.TotalAmt),
+          monto_subtotal: parseFloat(sr.TotalAmt) - parseFloat(sr.TxnTaxDetail?.TotalTax || 0),
+          monto_iva: parseFloat(sr.TxnTaxDetail?.TotalTax || 0),
+          monto_total: parseFloat(sr.TotalAmt),
           qbo_sales_receipt_id: sr.Id, qbo_transaction_type: 'SalesReceipt',
           status: 'SUCCESS', attempts: 1, is_production: true
         })
 
         resultados.lubricantes.exitos++
         resultados.lubricantes.detalle.push({
-          estacion: estacion.estacion_nombre, sr_id: sr.Id, monto: sr.TotalAmt
+          estacion: estacion.estacion_nombre, sr_id: sr.Id,
+          neto: sr.TotalAmt - (sr.TxnTaxDetail?.TotalTax || 0),
+          iva: sr.TxnTaxDetail?.TotalTax || 0,
+          total: sr.TotalAmt
         })
       } catch (err) {
         resultados.lubricantes.errores++
@@ -317,7 +313,7 @@ export default async function handler(req, res) {
     }
 
     // ============================================
-    // 3. TIENDA -> SALES RECEIPT con TaxIncluded
+    // 3. TIENDA -> SALES RECEIPT con NETO + TaxCodeRef
     // ============================================
     const { data: tiendaFels } = await supabaseAdmin
       .from('tienda_facturas_fel').select('id, fecha, monto, estacion_id, tienda_facturas_fel_items(descripcion, cantidad, total)')
@@ -371,13 +367,15 @@ export default async function handler(req, res) {
             resultados.tienda.detalle.push({ estacion: estacion.estacion_nombre, error: `Item prod ${cat} no mapeado` })
             continue
           }
+          const netoLinea = brutoToNeto(dataCat.total)
           lines.push({
             DetailType: 'SalesItemLineDetail',
-            Amount: parseFloat(dataCat.total.toFixed(2)),
+            Amount: netoLinea,
             Description: `${item.descripcion} (${dataCat.count} items)`,
             SalesItemLineDetail: {
               ItemRef: { value: item.qbo_item_id_prod },
               Qty: 1,
+              UnitPrice: netoLinea,
               ClassRef: { value: estacion.qbo_class_id_prod },
               TaxCodeRef: { value: TAX_CODE_IVA_GENERAL }
             }
@@ -386,10 +384,12 @@ export default async function handler(req, res) {
 
         if (lines.length === 0) { resultados.tienda.omitidos++; continue }
 
-        const totalLineas = lines.reduce((s, l) => s + l.Amount, 0)
+        const totalLineasNeto = lines.reduce((s, l) => s + l.Amount, 0)
+        const totalBrutoTienda = felsEst.reduce((s, f) => s + parseFloat(f.monto || 0), 0)
         if (dryRun) {
           resultados.tienda.detalle.push({
-            estacion: estacion.estacion_nombre, lineas: lines.length, total: totalLineas,
+            estacion: estacion.estacion_nombre, lineas: lines.length,
+            total_neto: totalLineasNeto, total_bruto_esperado: totalBrutoTienda,
             fels: felsEst.length, dry_run: true
           })
           continue
@@ -400,7 +400,6 @@ export default async function handler(req, res) {
             TxnDate: fecha,
             CustomerRef: { value: customer.qbo_customer_id_prod },
             ClassRef: { value: estacion.qbo_class_id_prod },
-            GlobalTaxCalculation: 'TaxIncluded',
             Line: lines,
             PrivateNote: `Auto: tienda ${estacion.estacion_codigo} ${fecha} (${felsEst.length} FEL)`
           })
@@ -417,14 +416,19 @@ export default async function handler(req, res) {
             bucket_key: `${fecha}|${estacion.estacion_codigo}|Tienda|CF|PROD`,
             estacion: estacion.estacion_codigo, categoria: 'Tienda', customer_type: 'CF',
             customer_nit: customer.nit, fel_count: felsEst.length, fel_ids: fel_ids_procesados,
-            monto_subtotal: parseFloat(sr.TotalAmt), monto_iva: 0, monto_total: parseFloat(sr.TotalAmt),
+            monto_subtotal: parseFloat(sr.TotalAmt) - parseFloat(sr.TxnTaxDetail?.TotalTax || 0),
+            monto_iva: parseFloat(sr.TxnTaxDetail?.TotalTax || 0),
+            monto_total: parseFloat(sr.TotalAmt),
             qbo_sales_receipt_id: sr.Id, qbo_transaction_type: 'SalesReceipt',
             status: 'SUCCESS', attempts: 1, is_production: true
           })
 
           resultados.tienda.exitos++
           resultados.tienda.detalle.push({
-            estacion: estacion.estacion_nombre, sr_id: sr.Id, monto: sr.TotalAmt,
+            estacion: estacion.estacion_nombre, sr_id: sr.Id,
+            neto: sr.TotalAmt - (sr.TxnTaxDetail?.TotalTax || 0),
+            iva: sr.TxnTaxDetail?.TotalTax || 0,
+            total: sr.TotalAmt,
             fels: felsEst.length, lineas: lines.length
           })
         } catch (err) {
@@ -438,11 +442,8 @@ export default async function handler(req, res) {
     const duracionSeg = (duracionMs / 1000).toFixed(2)
 
     if (!dryRun) {
-      try {
-        await enviarReporteSync(resultados, fecha + ' (PROD)', duracionSeg)
-      } catch (emailErr) {
-        console.error('[Sync-PROD] Email error:', emailErr.message)
-      }
+      try { await enviarReporteSync(resultados, fecha + ' (PROD)', duracionSeg) }
+      catch (emailErr) { console.error('[Sync-PROD] Email error:', emailErr.message) }
     }
 
     return res.status(200).json({
