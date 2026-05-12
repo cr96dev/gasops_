@@ -7,6 +7,10 @@
     {
       "path": "/api/qbo/sync/retry-failed",
       "schedule": "30 10 * * *"
+    },
+    {
+      "path": "/api/qbo/conciliar/mensual",
+      "schedule": "0 11 1 * *"
     }
   ],
   "functions": {
@@ -14,6 +18,9 @@
       "maxDuration": 60
     },
     "pages/api/qbo/sync/retry-failed.js": {
+      "maxDuration": 60
+    },
+    "pages/api/qbo/conciliar/mensual.js": {
       "maxDuration": 60
     }
   }
