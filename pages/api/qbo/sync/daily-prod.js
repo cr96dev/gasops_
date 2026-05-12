@@ -1,20 +1,20 @@
 // pages/api/qbo/sync/daily-prod.js
-// Sync diario contra QBO PRODUCTION (datos reales)
-// Combustible -> Deposit contra Custodia (1150040016)
-// Lubricantes -> Sales Receipt (Item 34, Cuenta 177)
-// Tienda      -> Sales Receipt (Items 941-948, Cuentas SAT)
+// Sync diario contra QBO PRODUCTION
+// Combustible -> Deposit a Custodia Combustible Bank (329), CR Custodia Venta Combustible (1150040016)
+// Lubricantes -> Sales Receipt con TaxIncluded + TaxCode IVA General (2)
+// Tienda      -> Sales Receipt con TaxIncluded + TaxCode IVA General (2)
 
 import { supabaseAdmin } from '../../../../lib/qbo/supabaseAdmin'
 import { enviarReporteSync, enviarErrorFatal } from '../../../../lib/qbo/emailAlerts'
 
 const QBO_API_BASE = 'https://quickbooks.api.intuit.com'
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
-const UNDEPOSITED_FUNDS_ID = '97'
-const CUSTODIA_COMBUSTIBLE_ID = '1150040016'
 
-// =========================================
-// CATEGORIZACION TIENDA (mismo regex que sandbox)
-// =========================================
+// IDs production
+const CUSTODIA_BANK_ID = '329'              // "Custodia Combustible Bank"
+const CUSTODIA_LIABILITY_ID = '1150040016'  // "Custodia de Venta de Combustible"
+const TAX_CODE_IVA_GENERAL = '2'             // "IVA General" 12%
+
 function categorizarItem(descripcion) {
   const d = (descripcion || '').toUpperCase()
   if (d.match(/GALLO|MICHELADA|MICHELOB|CORONA|CABRO|MONTECARLO|CERVEZA|BREVA|HEINEKEN|MODELO|VICTORIA|VINO|RON|RHUM|WHISKY|VODKA|TEQUILA|GINEBRA|LICOR|JAGERMEISTER|SMIRNOFF|FOUR LOKO|VENADO/)) return 'TIENDA-BEBIDAS-ALC'
@@ -27,13 +27,10 @@ function categorizarItem(descripcion) {
   return 'TIENDA-OTROS'
 }
 
-// =========================================
-// TOKEN REFRESH PROD
-// =========================================
 async function getAccessToken() {
   const { data: token, error } = await supabaseAdmin
     .from('qbo_tokens').select('*').eq('is_production', true).limit(1).single()
-  if (error || !token) throw new Error('No hay token PRODUCTION en DB. Hacer OAuth en /api/qbo/auth/connect-prod')
+  if (error || !token) throw new Error('No hay token PRODUCTION en DB')
 
   const now = new Date()
   const accessExpires = new Date(token.access_token_expires_at)
@@ -41,7 +38,6 @@ async function getAccessToken() {
     return { accessToken: token.access_token, realmId: token.realm_id }
   }
 
-  // Refresh
   const r = await fetch('https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer', {
     method: 'POST',
     headers: {
@@ -79,9 +75,6 @@ async function qboCall(realmId, accessToken, method, path, body = null) {
   return JSON.parse(text)
 }
 
-// =========================================
-// HANDLER
-// =========================================
 export default async function handler(req, res) {
   if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).json({ error: 'Use POST or GET' })
   const auth = req.headers.authorization
@@ -107,7 +100,6 @@ export default async function handler(req, res) {
   try {
     const { accessToken, realmId } = await getAccessToken()
 
-    // Mapeos PRODUCTION
     const [estacionesRes, customersRes, itemsRes] = await Promise.all([
       supabaseAdmin.from('qbo_mapping_estaciones').select('*').eq('activo', true),
       supabaseAdmin.from('qbo_mapping_customers').select('*').eq('activo', true).eq('qbo_customer_type', 'CF_BY_STATION'),
@@ -121,7 +113,7 @@ export default async function handler(req, res) {
     itemsRes.data?.forEach(i => { itemsBySku[i.sku] = i })
 
     // ============================================
-    // 1. COMBUSTIBLE -> DEPOSIT contra Custodia
+    // 1. COMBUSTIBLE -> DEPOSIT
     // ============================================
     const { data: ventasCombustible } = await supabaseAdmin
       .from('ventas').select('*').eq('fecha', fecha).eq('qbo_processed_prod', false)
@@ -134,13 +126,12 @@ export default async function handler(req, res) {
         continue
       }
 
-      // Sumar ingresos por producto (1 linea Deposit por producto)
       const lineas = []
       const productos = [
-        { litros: venta.regular_litros, ingresos: venta.regular_ingresos, nombre: 'Combustible Regular' },
-        { litros: venta.premium_litros, ingresos: venta.premium_ingresos, nombre: 'Combustible Premium' },
-        { litros: venta.diesel_litros, ingresos: venta.diesel_ingresos, nombre: 'Diesel' },
-        { litros: venta.diesel_plus_litros, ingresos: venta.diesel_plus_ingresos, nombre: 'Diesel Plus' }
+        { galones: venta.regular_litros, ingresos: venta.regular_ingresos, nombre: 'Combustible Regular' },
+        { galones: venta.premium_litros, ingresos: venta.premium_ingresos, nombre: 'Combustible Premium' },
+        { galones: venta.diesel_litros, ingresos: venta.diesel_ingresos, nombre: 'Diesel' },
+        { galones: venta.diesel_plus_litros, ingresos: venta.diesel_plus_ingresos, nombre: 'Diesel Plus' }
       ]
       for (const p of productos) {
         const monto = parseFloat(p.ingresos || 0)
@@ -148,9 +139,9 @@ export default async function handler(req, res) {
           lineas.push({
             DetailType: 'DepositLineDetail',
             Amount: monto,
-            Description: `${p.nombre} - ${p.litros} L (${estacion.estacion_nombre} ${fecha})`,
+            Description: `${p.nombre} - ${p.galones} galones (${estacion.estacion_nombre} ${fecha})`,
             DepositLineDetail: {
-              AccountRef: { value: CUSTODIA_COMBUSTIBLE_ID },
+              AccountRef: { value: CUSTODIA_LIABILITY_ID },
               ClassRef: { value: estacion.qbo_class_id_prod }
             }
           })
@@ -181,7 +172,7 @@ export default async function handler(req, res) {
       try {
         const result = await qboCall(realmId, accessToken, 'POST', '/deposit', {
           TxnDate: fecha,
-          DepositToAccountRef: { value: UNDEPOSITED_FUNDS_ID },
+          DepositToAccountRef: { value: CUSTODIA_BANK_ID },
           PrivateNote: `Auto: combustible custodia ${estacion.estacion_codigo} ${fecha}`,
           Line: lineas
         })
@@ -223,7 +214,7 @@ export default async function handler(req, res) {
     }
 
     // ============================================
-    // 2. LUBRICANTES -> SALES RECEIPT
+    // 2. LUBRICANTES -> SALES RECEIPT con TaxIncluded
     // ============================================
     const { data: ventasLub } = await supabaseAdmin
       .from('ventas_lubricantes').select('*, ventas_lubricantes_detalle(*)')
@@ -264,7 +255,8 @@ export default async function handler(req, res) {
               ItemRef: { value: itemIdProd },
               Qty: parseFloat(d.cantidad || 1),
               UnitPrice: parseFloat(d.precio_unitario || d.subtotal),
-              ClassRef: { value: estacion.qbo_class_id_prod }
+              ClassRef: { value: estacion.qbo_class_id_prod },
+              TaxCodeRef: { value: TAX_CODE_IVA_GENERAL }
             }
           })
         }
@@ -274,7 +266,8 @@ export default async function handler(req, res) {
           SalesItemLineDetail: {
             ItemRef: { value: itemIdProd },
             Qty: 1, UnitPrice: totalVenta,
-            ClassRef: { value: estacion.qbo_class_id_prod }
+            ClassRef: { value: estacion.qbo_class_id_prod },
+            TaxCodeRef: { value: TAX_CODE_IVA_GENERAL }
           }
         })
       }
@@ -291,6 +284,7 @@ export default async function handler(req, res) {
           TxnDate: fecha,
           CustomerRef: { value: customer.qbo_customer_id_prod },
           ClassRef: { value: estacion.qbo_class_id_prod },
+          GlobalTaxCalculation: 'TaxIncluded',
           Line: lines,
           PrivateNote: `Auto: lubricantes ${estacion.estacion_codigo} ${fecha}`
         })
@@ -323,7 +317,7 @@ export default async function handler(req, res) {
     }
 
     // ============================================
-    // 3. TIENDA -> SALES RECEIPT (8 categorias)
+    // 3. TIENDA -> SALES RECEIPT con TaxIncluded
     // ============================================
     const { data: tiendaFels } = await supabaseAdmin
       .from('tienda_facturas_fel').select('id, fecha, monto, estacion_id, tienda_facturas_fel_items(descripcion, cantidad, total)')
@@ -384,7 +378,8 @@ export default async function handler(req, res) {
             SalesItemLineDetail: {
               ItemRef: { value: item.qbo_item_id_prod },
               Qty: 1,
-              ClassRef: { value: estacion.qbo_class_id_prod }
+              ClassRef: { value: estacion.qbo_class_id_prod },
+              TaxCodeRef: { value: TAX_CODE_IVA_GENERAL }
             }
           })
         }
@@ -405,6 +400,7 @@ export default async function handler(req, res) {
             TxnDate: fecha,
             CustomerRef: { value: customer.qbo_customer_id_prod },
             ClassRef: { value: estacion.qbo_class_id_prod },
+            GlobalTaxCalculation: 'TaxIncluded',
             Line: lines,
             PrivateNote: `Auto: tienda ${estacion.estacion_codigo} ${fecha} (${felsEst.length} FEL)`
           })
@@ -441,7 +437,6 @@ export default async function handler(req, res) {
     const duracionMs = Date.now() - startTime
     const duracionSeg = (duracionMs / 1000).toFixed(2)
 
-    // Email solo en EXECUTE
     if (!dryRun) {
       try {
         await enviarReporteSync(resultados, fecha + ' (PROD)', duracionSeg)
