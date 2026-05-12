@@ -1,8 +1,10 @@
 // pages/api/qbo/sync/daily.js
 // Procesa: combustible + lubricantes + tienda (todo CF agrupado por categoria)
+// Envia email de resumen via Brevo al finalizar
 
 import { qboApi } from '../../../../lib/qbo/apiClient'
 import { supabaseAdmin } from '../../../../lib/qbo/supabaseAdmin'
+import { enviarReporteSync, enviarErrorFatal } from '../../../../lib/qbo/emailAlerts'
 
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
 
@@ -199,7 +201,6 @@ export default async function handler(req, res) {
       .eq('fecha', fecha).eq('qbo_processed', false)
 
     if (tiendaFels && tiendaFels.length > 0) {
-      // Agrupar por estacion (todas Oakland por ahora)
       const porEstacion = {}
       for (const fel of tiendaFels) {
         const estId = fel.estacion_id || OAKLAND_ID
@@ -215,7 +216,6 @@ export default async function handler(req, res) {
 
         const felsEst = porEstacion[estacionId]
 
-        // Agrupar items por categoria
         const porCategoria = {}
         let monto_sin_items = 0
         const fel_ids_procesados = []
@@ -224,7 +224,6 @@ export default async function handler(req, res) {
           fel_ids_procesados.push(fel.id)
           const items = fel.tienda_facturas_fel_items || []
           if (items.length === 0) {
-            // FEL sin items detallados - cae en TIENDA-OTROS
             monto_sin_items += parseFloat(fel.monto || 0)
             continue
           }
@@ -277,7 +276,6 @@ export default async function handler(req, res) {
           })
           const sr = result.SalesReceipt
 
-          // Marcar todas las FEL como procesadas
           await supabaseAdmin.from('tienda_facturas_fel')
             .update({ qbo_processed: true, qbo_sales_receipt_id: sr.Id, qbo_processed_at: new Date().toISOString() })
             .in('id', fel_ids_procesados)
@@ -302,14 +300,29 @@ export default async function handler(req, res) {
     }
 
     const duracionMs = Date.now() - startTime
+    const duracionSeg = (duracionMs / 1000).toFixed(2)
+
+    // Enviar email de resumen (no bloqueante)
+    try {
+      await enviarReporteSync(resultados, fecha, duracionSeg)
+    } catch (emailErr) {
+      console.error('[Sync] Email error (no critico):', emailErr.message)
+    }
+
     return res.status(200).json({
       success: true,
       fecha,
       duracion_ms: duracionMs,
-      duracion_seg: (duracionMs / 1000).toFixed(2),
+      duracion_seg: duracionSeg,
       resultados
     })
   } catch (err) {
+    // Enviar email de error fatal (no bloqueante)
+    try {
+      await enviarErrorFatal(err.message, fecha)
+    } catch (emailErr) {
+      console.error('[Sync] Email fatal error:', emailErr.message)
+    }
     return res.status(500).json({ error: err.message, resultados })
   }
 }
