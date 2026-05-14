@@ -9,12 +9,14 @@ const navItems = [
   { href: '/tanques',     label: 'Tanques',      icon: 'M11 2a9 9 0 100 18A9 9 0 0011 2zm1 2.07V11h6.93A7 7 0 0112 4.07zM4 12a7 7 0 017-7v7l-4.95 4.95A6.97 6.97 0 014 12z' },
   { href: '/inventario',  label: 'Inventario',   icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4V5z' },
   { href: '/entregas',    label: 'Entregas',     icon: 'M1 3h15v13H1V3zm15 5h4l3 3v5h-7V8z' },
+  { href: '/entregas-productos', label: 'Entregas prod.', icon: 'M3 7h18M3 12h18M3 17h18M5 7v10M9 7v10M15 7v10M19 7v10' },
   { href: '/facturacion', label: 'Facturas',     icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zM6 20V4h7v5h5v11H6z' },
 ]
 
 const adminItems = [
   { href: '/admin',        label: 'Panel general', icon: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z' },
   { href: '/inventario',   label: 'Inventario',    icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 5h16v2H4V5z' },
+  { href: '/entregas-productos', label: 'Entregas productos', icon: 'M3 7h18M3 12h18M3 17h18M5 7v10M9 7v10M15 7v10M19 7v10' },
   { href: '/wsm',          label: 'Wetstock',      icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
   { href: '/reportes',     label: 'Reportes',      icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { href: '/facturas-fel', label: 'Facturas FEL',  icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
