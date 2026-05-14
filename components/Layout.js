@@ -132,13 +132,23 @@ function ModalCambioContrasena({ onClose }) {
   )
 }
 
+const CARGAS_RETRO_EMAILS = ['adoffice569@gmail.com', 'estacionesdeservicioguatemala@gmail.com']
+
 export default function Layout({ children, perfil, estacion }) {
   const router = useRouter()
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const [modalContrasena, setModalContrasena] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
   const esAdmin = perfil?.rol === 'admin'
   const esOakland = perfil?.estacion_id === OAKLAND_ID
+  const puedeVerCargasRetro = CARGAS_RETRO_EMAILS.includes(userEmail)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.email) setUserEmail(user.email)
+    })
+  }, [])
 
   const itemsVisibles = esAdmin ? [] : navItems.filter(item => {
     if (item.href === '/tienda') return esOakland
@@ -213,6 +223,17 @@ export default function Layout({ children, perfil, estacion }) {
                   </button>
                 )
               })}
+              {puedeVerCargasRetro && (
+                <button onClick={() => router.push('/admin/ventas-retroactivas')}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    router.pathname === '/admin/ventas-retroactivas' ? 'bg-amber-50 text-amber-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Cargas retroactivas
+                </button>
+              )}
             </>
           )}
 
@@ -323,6 +344,17 @@ export default function Layout({ children, perfil, estacion }) {
                     </button>
                   )
                 })}
+                {puedeVerCargasRetro && (
+                  <button onClick={() => { router.push('/admin/ventas-retroactivas'); setMenuAbierto(false) }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${
+                      router.pathname === '/admin/ventas-retroactivas' ? 'bg-amber-50 text-amber-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Cargas retroactivas
+                  </button>
+                )}
               </>
             )}
             <div className="border-t border-gray-100 mt-2 pt-2 px-4 flex items-center justify-between">
