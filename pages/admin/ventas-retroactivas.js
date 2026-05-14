@@ -1,19 +1,17 @@
 // pages/admin/ventas-retroactivas.js
-// SOLO visible para adoffice569@gmail.com
+// SOLO visible para Charles y Miguel
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/router'
+import { supabase } from '../../lib/supabase'
+import Layout from '../../components/Layout'
 
 const AUTHORIZED_EMAILS = ['adoffice569@gmail.com', 'estacionesdeservicioguatemala@gmail.com']
 
 export default function VentasRetroactivas() {
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-
   const [perfil, setPerfil] = useState(null)
+  const [estacion, setEstacion] = useState(null)
+  const [accessToken, setAccessToken] = useState(null)
   const [estaciones, setEstaciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -42,24 +40,35 @@ export default function VentasRetroactivas() {
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        router.push('/')
         return
       }
-      
-      // SOLO email autorizado
-      if (!AUTHORIZED_EMAILS.includes(user.email)) {
+
+      if (!AUTHORIZED_EMAILS.includes(session.user.email)) {
         router.push('/dashboard')
         return
       }
 
+      setAccessToken(session.access_token)
+
       const { data: p } = await supabase
         .from('perfiles')
-        .select('id, nombre_completo, rol')
-        .eq('id', user.id)
+        .select('id, nombre_completo, rol, estacion_id')
+        .eq('id', session.user.id)
         .single()
       setPerfil(p)
+
+      // Obtener datos de estacion del usuario (para el Layout)
+      if (p?.estacion_id) {
+        const { data: e } = await supabase
+          .from('estaciones')
+          .select('id, nombre, zona')
+          .eq('id', p.estacion_id)
+          .single()
+        setEstacion(e)
+      }
 
       const { data: ests } = await supabase
         .from('qbo_mapping_estaciones')
@@ -107,7 +116,10 @@ export default function VentasRetroactivas() {
     try {
       const res = await fetch('/api/admin/carga-retroactiva', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
         body: JSON.stringify({
           categoria, fecha, estacion_id: estacionId, datos, notas
         })
@@ -133,126 +145,139 @@ export default function VentasRetroactivas() {
     setSubmitting(false)
   }
 
-  if (loading) return <div style={{padding: 40}}>Cargando...</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500 text-sm">Cargando...</div>
+      </div>
+    )
+  }
   if (!perfil) return null
 
   return (
-    <div style={{maxWidth: 800, margin: '0 auto', padding: 24, fontFamily: 'sans-serif'}}>
-      <h1>Carga Retroactiva de Ventas</h1>
-      <p style={{color: '#666'}}>
-        Usuario: <b>{perfil.nombre_completo}</b> · Rol: <b>{perfil.rol}</b>
-      </p>
-      
-      <div style={{background:'#FEF3C7', padding:12, borderRadius:6, marginBottom: 20}}>
-        Funcionalidad de acceso restringido. Todas las cargas quedan auditadas. 
-        Una vez creado el registro, el cron del dia siguiente lo procesara automaticamente a QBO.
-      </div>
+    <Layout perfil={perfil} estacion={estacion}>
+      <div className="max-w-3xl mx-auto p-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Carga Retroactiva de Ventas</h1>
+        <p className="text-sm text-gray-500 mb-6">
+          Usuario: <b>{perfil.nombre_completo}</b> · Rol: <b>{perfil.rol}</b>
+        </p>
 
-      <form onSubmit={handleSubmit}>
-        <div style={{marginBottom: 16}}>
-          <label style={{display:'block', fontWeight:'bold'}}>Categoria</label>
-          <select value={categoria} onChange={e => setCategoria(e.target.value)}
-            style={{width:'100%', padding:8, marginTop:4}}>
-            <option value="combustible">Combustible</option>
-            <option value="lubricantes">Lubricantes</option>
-            <option value="tienda">Tienda (FEL individual)</option>
-          </select>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6 text-sm text-amber-800">
+          Funcionalidad de acceso restringido. Todas las cargas quedan auditadas. 
+          Una vez creado el registro, el cron del dia siguiente lo procesara automaticamente a QBO.
         </div>
 
-        <div style={{display:'flex', gap:16, marginBottom: 16}}>
-          <div style={{flex:1}}>
-            <label style={{display:'block', fontWeight:'bold'}}>Fecha</label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-              max={new Date().toISOString().split('T')[0]}
-              required style={{width:'100%', padding:8, marginTop:4}} />
-          </div>
-          <div style={{flex:1}}>
-            <label style={{display:'block', fontWeight:'bold'}}>Estacion</label>
-            <select value={estacionId} onChange={e => setEstacionId(e.target.value)}
-              required style={{width:'100%', padding:8, marginTop:4}}>
-              <option value="">-- Seleccionar --</option>
-              {estaciones.map(e => (
-                <option key={e.gasops_estacion_id} value={e.gasops_estacion_id}>
-                  {e.estacion_nombre}
-                </option>
-              ))}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1 font-medium">Categoría</label>
+            <select value={categoria} onChange={e => setCategoria(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+              <option value="combustible">Combustible</option>
+              <option value="lubricantes">Lubricantes</option>
+              <option value="tienda">Tienda (FEL individual)</option>
             </select>
           </div>
-        </div>
 
-        {categoria === 'combustible' && (
-          <div style={{background:'#F3F4F6', padding:16, borderRadius:6, marginBottom:16}}>
-            <h3 style={{marginTop:0}}>Combustible (galones e ingresos por producto)</h3>
-            {[['Regular', reg, setReg], ['Premium', pre, setPre], 
-              ['Diesel', die, setDie], ['Diesel Plus', diep, setDiep]].map(([nombre, val, setter]) => (
-              <div key={nombre} style={{display:'flex', gap:8, marginBottom:8, alignItems:'center'}}>
-                <span style={{width:100, fontWeight:'bold'}}>{nombre}:</span>
-                <input type="number" step="0.01" placeholder="Galones" value={val.litros}
-                  onChange={e => setter({...val, litros: e.target.value})}
-                  style={{flex:1, padding:8}} />
-                <input type="number" step="0.01" placeholder="Ingresos Q" value={val.ingresos}
-                  onChange={e => setter({...val, ingresos: e.target.value})}
-                  style={{flex:1, padding:8}} />
-              </div>
-            ))}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1 font-medium">Fecha</label>
+              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                required
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1 font-medium">Estación</label>
+              <select value={estacionId} onChange={e => setEstacionId(e.target.value)}
+                required
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+                <option value="">-- Seleccionar --</option>
+                {estaciones.map(e => (
+                  <option key={e.gasops_estacion_id} value={e.gasops_estacion_id}>
+                    {e.estacion_nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {categoria === 'combustible' && (
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
+              <h3 className="font-medium text-gray-800 mb-3 text-sm">Combustible (galones e ingresos por producto)</h3>
+              {[['Regular', reg, setReg], ['Premium', pre, setPre],
+                ['Diesel', die, setDie], ['Diesel Plus', diep, setDiep]].map(([nombre, val, setter]) => (
+                <div key={nombre} className="flex gap-2 mb-2 items-center">
+                  <span className="w-24 text-sm font-medium text-gray-700">{nombre}:</span>
+                  <input type="number" step="0.01" placeholder="Galones" value={val.litros}
+                    onChange={e => setter({...val, litros: e.target.value})}
+                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                  <input type="number" step="0.01" placeholder="Ingresos Q" value={val.ingresos}
+                    onChange={e => setter({...val, ingresos: e.target.value})}
+                    className="flex-1 border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {categoria === 'lubricantes' && (
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
+              <h3 className="font-medium text-gray-800 mb-3 text-sm">Lubricantes</h3>
+              <label className="text-xs text-gray-500 block mb-1">Total venta (Q, con IVA incluido)</label>
+              <input type="number" step="0.01" value={lubTotal} onChange={e => setLubTotal(e.target.value)}
+                required
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+            </div>
+          )}
+
+          {categoria === 'tienda' && (
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
+              <h3 className="font-medium text-gray-800 mb-3 text-sm">Tienda (1 FEL individual)</h3>
+              <label className="text-xs text-gray-500 block mb-1">Número de factura</label>
+              <input value={tiendaNumFactura} onChange={e => setTiendaNumFactura(e.target.value)}
+                required
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:border-blue-400" />
+              <label className="text-xs text-gray-500 block mb-1">UUID FEL</label>
+              <input value={tiendaUuid} onChange={e => setTiendaUuid(e.target.value)}
+                required
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:border-blue-400" />
+              <label className="text-xs text-gray-500 block mb-1">Monto (Q, con IVA)</label>
+              <input type="number" step="0.01" value={tiendaMonto} onChange={e => setTiendaMonto(e.target.value)}
+                required
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-400" />
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-gray-500 block mb-1 font-medium">Notas (opcional)</label>
+            <textarea value={notas} onChange={e => setNotas(e.target.value)}
+              placeholder="Razón de la carga retroactiva..."
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm min-h-[60px] focus:outline-none focus:border-blue-400" />
+          </div>
+
+          <button type="submit" disabled={submitting}
+            className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 text-sm">
+            {submitting ? 'Guardando...' : 'Cargar venta'}
+          </button>
+        </form>
+
+        {error && (
+          <div className="bg-red-50 border border-red-100 rounded-lg p-3 mt-4 text-sm text-red-700">
+            Error: {error}
           </div>
         )}
 
-        {categoria === 'lubricantes' && (
-          <div style={{background:'#F3F4F6', padding:16, borderRadius:6, marginBottom:16}}>
-            <h3 style={{marginTop:0}}>Lubricantes</h3>
-            <label>Total venta (Q, con IVA incluido)</label>
-            <input type="number" step="0.01" value={lubTotal} onChange={e => setLubTotal(e.target.value)}
-              required style={{width:'100%', padding:8, marginTop:4}} />
+        {resultado && (
+          <div className="bg-green-50 border border-green-100 rounded-lg p-3 mt-4 text-sm text-green-800">
+            <div className="font-medium mb-2">{resultado.mensaje}</div>
+            <div className="text-xs space-y-0.5">
+              <div><b>Estación:</b> {resultado.estacion}</div>
+              <div><b>Fecha:</b> {resultado.fecha}</div>
+              <div><b>Monto:</b> Q{resultado.monto_total.toFixed(2)}</div>
+              <div><b>Acción:</b> {resultado.accion}</div>
+            </div>
           </div>
         )}
-
-        {categoria === 'tienda' && (
-          <div style={{background:'#F3F4F6', padding:16, borderRadius:6, marginBottom:16}}>
-            <h3 style={{marginTop:0}}>Tienda (1 FEL individual)</h3>
-            <label>Numero de factura</label>
-            <input value={tiendaNumFactura} onChange={e => setTiendaNumFactura(e.target.value)}
-              required style={{width:'100%', padding:8, marginBottom:8}} />
-            <label>UUID FEL</label>
-            <input value={tiendaUuid} onChange={e => setTiendaUuid(e.target.value)}
-              required style={{width:'100%', padding:8, marginBottom:8}} />
-            <label>Monto (Q, con IVA)</label>
-            <input type="number" step="0.01" value={tiendaMonto} onChange={e => setTiendaMonto(e.target.value)}
-              required style={{width:'100%', padding:8}} />
-          </div>
-        )}
-
-        <div style={{marginBottom: 16}}>
-          <label style={{display:'block', fontWeight:'bold'}}>Notas (opcional)</label>
-          <textarea value={notas} onChange={e => setNotas(e.target.value)}
-            placeholder="Razon de la carga retroactiva..."
-            style={{width:'100%', padding:8, marginTop:4, minHeight:60}} />
-        </div>
-
-        <button type="submit" disabled={submitting}
-          style={{padding:'12px 24px', background:'#2E75B6', color:'white', 
-                  border:'none', borderRadius:6, fontWeight:'bold', cursor:'pointer', fontSize:16}}>
-          {submitting ? 'Guardando...' : 'Cargar venta'}
-        </button>
-      </form>
-
-      {error && (
-        <div style={{background:'#FEE2E2', padding:12, borderRadius:6, marginTop:16}}>
-          Error: {error}
-        </div>
-      )}
-
-      {resultado && (
-        <div style={{background:'#D1FAE5', padding:12, borderRadius:6, marginTop:16}}>
-          {resultado.mensaje}
-          <div style={{marginTop:8, fontSize:14}}>
-            <b>Estacion:</b> {resultado.estacion}<br/>
-            <b>Fecha:</b> {resultado.fecha}<br/>
-            <b>Monto:</b> Q{resultado.monto_total.toFixed(2)}<br/>
-            <b>Accion:</b> {resultado.accion}
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    </Layout>
   )
 }

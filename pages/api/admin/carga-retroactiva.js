@@ -1,40 +1,40 @@
 // pages/api/admin/carga-retroactiva.js
-// SOLO accesible para adoffice569@gmail.com
+// SOLO accesible para Charles y Miguel
 // Cargar ventas retroactivas: combustible, lubricantes, tienda
 
-import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '../../../lib/qbo/supabaseAdmin'
 
-// Email autorizado UNICO
 const AUTHORIZED_EMAILS = ['adoffice569@gmail.com', 'estacionesdeservicioguatemala@gmail.com']
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // 1. Obtener usuario autenticado
-  const supabase = createServerClient(
+  // 1. Obtener token del header Authorization (cliente lo envía)
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Falta token de autorización' })
+  }
+  const token = authHeader.replace('Bearer ', '')
+
+  // 2. Crear cliente con el token del usuario y obtener su sesión
+  const supabaseClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        get(name) { return req.cookies[name] },
-        set() {},
-        remove() {}
-      }
-    }
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
   )
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token)
   if (authError || !user) {
     return res.status(401).json({ error: 'No autenticado' })
   }
 
-  // 2. SOLO el email autorizado puede usar este endpoint
+  // 3. SOLO emails autorizados
   if (!AUTHORIZED_EMAILS.includes(user.email)) {
     return res.status(403).json({ error: 'Acceso denegado - funcionalidad restringida' })
   }
 
-  // 3. Confirmar perfil con role admin
+  // 4. Confirmar perfil admin
   const { data: perfil } = await supabaseAdmin
     .from('perfiles')
     .select('id, nombre_completo, rol')
@@ -45,14 +45,7 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Acceso denegado' })
   }
 
-  // 4. Parsear request
-  const {
-    categoria,
-    fecha,
-    estacion_id,
-    datos,
-    notas
-  } = req.body
+  const { categoria, fecha, estacion_id, datos, notas } = req.body
 
   if (!categoria || !fecha || !estacion_id || !datos) {
     return res.status(400).json({ error: 'Faltan campos: categoria, fecha, estacion_id, datos' })
@@ -63,7 +56,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'No se permiten fechas futuras' })
   }
 
-  // 5. Obtener nombre estacion
   const { data: estacion } = await supabaseAdmin
     .from('qbo_mapping_estaciones')
     .select('estacion_nombre')
@@ -184,7 +176,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Categoria invalida' })
     }
 
-    // 6. Auditoria
     await supabaseAdmin.from('cargas_retroactivas_audit').insert({
       cargado_por_perfil_id: perfil.id,
       cargado_por_nombre: perfil.nombre_completo,
