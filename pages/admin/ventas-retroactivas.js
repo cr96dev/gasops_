@@ -1,7 +1,10 @@
 // pages/admin/ventas-retroactivas.js
+// SOLO visible para adoffice569@gmail.com
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/router'
+
+const AUTHORIZED_EMAIL = 'adoffice569@gmail.com'
 
 export default function VentasRetroactivas() {
   const router = useRouter()
@@ -26,16 +29,13 @@ export default function VentasRetroactivas() {
   const [estacionId, setEstacionId] = useState('')
   const [notas, setNotas] = useState('')
 
-  // Combustible
   const [reg, setReg] = useState({ litros: '', ingresos: '' })
   const [pre, setPre] = useState({ litros: '', ingresos: '' })
   const [die, setDie] = useState({ litros: '', ingresos: '' })
   const [diep, setDiep] = useState({ litros: '', ingresos: '' })
 
-  // Lubricantes
   const [lubTotal, setLubTotal] = useState('')
 
-  // Tienda
   const [tiendaMonto, setTiendaMonto] = useState('')
   const [tiendaNumFactura, setTiendaNumFactura] = useState('')
   const [tiendaUuid, setTiendaUuid] = useState('')
@@ -47,16 +47,18 @@ export default function VentasRetroactivas() {
         router.push('/login')
         return
       }
+      
+      // SOLO email autorizado
+      if (user.email !== AUTHORIZED_EMAIL) {
+        router.push('/dashboard')
+        return
+      }
+
       const { data: p } = await supabase
         .from('perfiles')
         .select('id, nombre_completo, rol')
         .eq('id', user.id)
         .single()
-
-      if (!p || p.rol !== 'admin') {
-        router.push('/dashboard')
-        return
-      }
       setPerfil(p)
 
       const { data: ests } = await supabase
@@ -115,7 +117,6 @@ export default function VentasRetroactivas() {
         setError(data.error)
       } else {
         setResultado(data)
-        // Reset formulario
         setReg({ litros: '', ingresos: '' })
         setPre({ litros: '', ingresos: '' })
         setDie({ litros: '', ingresos: '' })
@@ -143,13 +144,13 @@ export default function VentasRetroactivas() {
       </p>
       
       <div style={{background:'#FEF3C7', padding:12, borderRadius:6, marginBottom: 20}}>
-        ⚠️ Esta herramienta es solo para administradores. Todas las cargas quedan auditadas. 
+        Funcionalidad de acceso restringido. Todas las cargas quedan auditadas. 
         Una vez creado el registro, el cron del dia siguiente lo procesara automaticamente a QBO.
       </div>
 
       <form onSubmit={handleSubmit}>
         <div style={{marginBottom: 16}}>
-          <label style={{display:'block', fontWeight:'bold'}}>Categoría</label>
+          <label style={{display:'block', fontWeight:'bold'}}>Categoria</label>
           <select value={categoria} onChange={e => setCategoria(e.target.value)}
             style={{width:'100%', padding:8, marginTop:4}}>
             <option value="combustible">Combustible</option>
@@ -166,7 +167,7 @@ export default function VentasRetroactivas() {
               required style={{width:'100%', padding:8, marginTop:4}} />
           </div>
           <div style={{flex:1}}>
-            <label style={{display:'block', fontWeight:'bold'}}>Estación</label>
+            <label style={{display:'block', fontWeight:'bold'}}>Estacion</label>
             <select value={estacionId} onChange={e => setEstacionId(e.target.value)}
               required style={{width:'100%', padding:8, marginTop:4}}>
               <option value="">-- Seleccionar --</option>
@@ -209,7 +210,7 @@ export default function VentasRetroactivas() {
         {categoria === 'tienda' && (
           <div style={{background:'#F3F4F6', padding:16, borderRadius:6, marginBottom:16}}>
             <h3 style={{marginTop:0}}>Tienda (1 FEL individual)</h3>
-            <label>Número de factura</label>
+            <label>Numero de factura</label>
             <input value={tiendaNumFactura} onChange={e => setTiendaNumFactura(e.target.value)}
               required style={{width:'100%', padding:8, marginBottom:8}} />
             <label>UUID FEL</label>
@@ -237,18 +238,18 @@ export default function VentasRetroactivas() {
 
       {error && (
         <div style={{background:'#FEE2E2', padding:12, borderRadius:6, marginTop:16}}>
-          ❌ Error: {error}
+          Error: {error}
         </div>
       )}
 
       {resultado && (
         <div style={{background:'#D1FAE5', padding:12, borderRadius:6, marginTop:16}}>
-          ✅ {resultado.mensaje}
+          {resultado.mensaje}
           <div style={{marginTop:8, fontSize:14}}>
-            <b>Estación:</b> {resultado.estacion}<br/>
+            <b>Estacion:</b> {resultado.estacion}<br/>
             <b>Fecha:</b> {resultado.fecha}<br/>
             <b>Monto:</b> Q{resultado.monto_total.toFixed(2)}<br/>
-            <b>Acción:</b> {resultado.accion}
+            <b>Accion:</b> {resultado.accion}
           </div>
         </div>
       )}

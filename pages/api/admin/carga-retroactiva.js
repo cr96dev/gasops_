@@ -1,14 +1,17 @@
 // pages/api/admin/carga-retroactiva.js
-// Permite a usuarios con rol='admin' cargar ventas retroactivas
-// Categorias: combustible, lubricantes, tienda
+// SOLO accesible para adoffice569@gmail.com
+// Cargar ventas retroactivas: combustible, lubricantes, tienda
 
 import { createServerClient } from '@supabase/ssr'
 import { supabaseAdmin } from '../../../lib/qbo/supabaseAdmin'
 
+// Email autorizado UNICO
+const AUTHORIZED_EMAIL = 'adoffice569@gmail.com'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // 1. Obtener usuario autenticado de Supabase Auth (cookie)
+  // 1. Obtener usuario autenticado
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -26,7 +29,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'No autenticado' })
   }
 
-  // 2. Verificar que es admin
+  // 2. SOLO el email autorizado puede usar este endpoint
+  if (user.email !== AUTHORIZED_EMAIL) {
+    return res.status(403).json({ error: 'Acceso denegado - funcionalidad restringida' })
+  }
+
+  // 3. Confirmar perfil con role admin
   const { data: perfil } = await supabaseAdmin
     .from('perfiles')
     .select('id, nombre_completo, rol')
@@ -34,29 +42,28 @@ export default async function handler(req, res) {
     .single()
 
   if (!perfil || perfil.rol !== 'admin') {
-    return res.status(403).json({ error: 'Acceso denegado - solo admins' })
+    return res.status(403).json({ error: 'Acceso denegado' })
   }
 
-  // 3. Parsear request
+  // 4. Parsear request
   const {
-    categoria,        // 'combustible' | 'lubricantes' | 'tienda'
-    fecha,            // 'YYYY-MM-DD'
+    categoria,
+    fecha,
     estacion_id,
-    datos,            // objeto con campos especificos por categoria
-    notas             // opcional
+    datos,
+    notas
   } = req.body
 
   if (!categoria || !fecha || !estacion_id || !datos) {
     return res.status(400).json({ error: 'Faltan campos: categoria, fecha, estacion_id, datos' })
   }
 
-  // Validar fecha no futura
   const hoy = new Date().toISOString().split('T')[0]
   if (fecha > hoy) {
     return res.status(400).json({ error: 'No se permiten fechas futuras' })
   }
 
-  // 4. Obtener nombre estacion para auditoria
+  // 5. Obtener nombre estacion
   const { data: estacion } = await supabaseAdmin
     .from('qbo_mapping_estaciones')
     .select('estacion_nombre')
@@ -71,8 +78,6 @@ export default async function handler(req, res) {
 
     if (categoria === 'combustible') {
       tablaDestino = 'ventas'
-      
-      // Verificar si ya existe registro para esa estacion+fecha
       const { data: existente } = await supabaseAdmin
         .from('ventas')
         .select('id')
@@ -118,7 +123,6 @@ export default async function handler(req, res) {
 
     } else if (categoria === 'lubricantes') {
       tablaDestino = 'ventas_lubricantes'
-      
       const lubData = {
         fecha,
         estacion_id,
@@ -136,7 +140,6 @@ export default async function handler(req, res) {
       if (error) throw error
       registroId = nuevo.id
 
-      // Insertar detalle si viene
       if (datos.detalles && Array.isArray(datos.detalles)) {
         const detalles = datos.detalles.map(d => ({
           ventas_lubricantes_id: registroId,
@@ -151,7 +154,6 @@ export default async function handler(req, res) {
 
     } else if (categoria === 'tienda') {
       tablaDestino = 'tienda_facturas_fel'
-      // Para tienda esperamos un array de FELs
       if (!Array.isArray(datos.fels)) {
         return res.status(400).json({ error: 'Para tienda enviar datos.fels como array' })
       }
@@ -182,7 +184,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Categoria invalida' })
     }
 
-    // 5. Registrar en auditoria
+    // 6. Auditoria
     await supabaseAdmin.from('cargas_retroactivas_audit').insert({
       cargado_por_perfil_id: perfil.id,
       cargado_por_nombre: perfil.nombre_completo,
