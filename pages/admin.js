@@ -349,16 +349,49 @@ export default function Admin({ session }) {
     URL.revokeObjectURL(url)
   }
 
-  function ventaAFila(v, estacionNombre) {
+  function ventaAFila(v, estacionNombre, combustiblesEst, modoConsolidado) {
     const totalIngresos=parseFloat(v.regular_ingresos||0)+parseFloat(v.premium_ingresos||0)+parseFloat(v.diesel_ingresos||0)+parseFloat(v.diesel_plus_ingresos||0)
     const totalCobros=metodosPago.reduce((s,m)=>s+(parseFloat(v[m])||0),0)
     const fila={}
     if (estacionNombre) fila['Estacion']=estacionNombre
     fila['Fecha']=v.fecha
-    fila['Super (gal)']=v.regular_litros||0; fila['Super (Q)']=v.regular_ingresos||0
-    fila['V-Power (gal)']=v.premium_litros||0; fila['V-Power (Q)']=v.premium_ingresos||0
-    fila['Diesel (gal)']=v.diesel_litros||0; fila['Diesel (Q)']=v.diesel_ingresos||0
-    fila['Regular (gal)']=v.diesel_plus_litros||0; fila['Regular (Q)']=v.diesel_plus_ingresos||0
+
+    // Modo individual: filtrar columnas por combustibles de la estacion
+    // Modo consolidado: mostrar las 4 columnas siempre, vacio donde no aplica
+    const combustibles = combustiblesEst || []
+    const tieneSuper = combustibles.includes('super')
+    const tieneVPower = combustibles.includes('vpower')
+    const tieneDiesel = combustibles.includes('diesel')
+    const tieneRegular = combustibles.includes('regular')
+
+    if (modoConsolidado) {
+      fila['Super (gal)'] = tieneSuper ? (v.regular_litros||0) : ''
+      fila['Super (Q)'] = tieneSuper ? (v.regular_ingresos||0) : ''
+      fila['V-Power (gal)'] = tieneVPower ? (v.premium_litros||0) : ''
+      fila['V-Power (Q)'] = tieneVPower ? (v.premium_ingresos||0) : ''
+      fila['Diesel (gal)'] = tieneDiesel ? (v.diesel_litros||0) : ''
+      fila['Diesel (Q)'] = tieneDiesel ? (v.diesel_ingresos||0) : ''
+      fila['Regular (gal)'] = tieneRegular ? (v.diesel_plus_litros||0) : ''
+      fila['Regular (Q)'] = tieneRegular ? (v.diesel_plus_ingresos||0) : ''
+    } else {
+      if (tieneSuper) {
+        fila['Super (gal)']=v.regular_litros||0
+        fila['Super (Q)']=v.regular_ingresos||0
+      }
+      if (tieneVPower) {
+        fila['V-Power (gal)']=v.premium_litros||0
+        fila['V-Power (Q)']=v.premium_ingresos||0
+      }
+      if (tieneDiesel) {
+        fila['Diesel (gal)']=v.diesel_litros||0
+        fila['Diesel (Q)']=v.diesel_ingresos||0
+      }
+      if (tieneRegular) {
+        fila['Regular (gal)']=v.diesel_plus_litros||0
+        fila['Regular (Q)']=v.diesel_plus_ingresos||0
+      }
+    }
+
     fila['Total Q']=totalIngresos
     metodosPago.forEach(m=>{ fila[metodosLabel[m]]=parseFloat(v[m])||0 })
     fila['Total cobros']=totalCobros
@@ -372,7 +405,7 @@ export default function Admin({ session }) {
     const nombre=estacion.nombre.replace(/\s+/g,'_'); const fecha=new Date().toISOString().split('T')[0]
     if (tipo==='ventas') {
       const { data } = await supabase.from('ventas').select(`fecha,regular_litros,regular_ingresos,premium_litros,premium_ingresos,diesel_litros,diesel_ingresos,diesel_plus_litros,diesel_plus_ingresos,${metodosPago.join(', ')},notas`).eq('estacion_id',estacion.id).order('fecha',{ascending:false})
-      descargarCSV((data||[]).map(v=>ventaAFila(v,null)),`ventas_${nombre}_${fecha}.csv`)
+      descargarCSV((data||[]).map(v=>ventaAFila(v,null,estacion.combustibles||[],false)),`ventas_${nombre}_${fecha}.csv`)
     }
     if (tipo==='lubricantes') {
       const { data } = await supabase.from('ventas_lubricantes').select('fecha,total_venta,neonet,efectivo,notas').eq('estacion_id',estacion.id).order('fecha',{ascending:false})
@@ -399,7 +432,7 @@ export default function Admin({ session }) {
     for (const est of estaciones) {
       if (tipo==='ventas') {
         const { data } = await supabase.from('ventas').select(`fecha,regular_litros,regular_ingresos,premium_litros,premium_ingresos,diesel_litros,diesel_ingresos,diesel_plus_litros,diesel_plus_ingresos,${metodosPago.join(', ')},notas`).eq('estacion_id',est.id).order('fecha',{ascending:false})
-        ;(data||[]).forEach(v=>todasFilas.push(ventaAFila(v,est.nombre)))
+        ;(data||[]).forEach(v=>todasFilas.push(ventaAFila(v,est.nombre,est.combustibles||[],true)))
       }
       if (tipo==='lubricantes') {
         const { data } = await supabase.from('ventas_lubricantes').select('fecha,total_venta,neonet,efectivo,notas').eq('estacion_id',est.id).order('fecha',{ascending:false})
