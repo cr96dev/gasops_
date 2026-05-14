@@ -6,7 +6,7 @@ import { createServerClient } from '@supabase/ssr'
 import { supabaseAdmin } from '../../../lib/qbo/supabaseAdmin'
 
 // Email autorizado UNICO
-const AUTHORIZED_EMAIL = 'adoffice569@gmail.com'
+const AUTHORIZED_EMAILS = ['adoffice569@gmail.com', 'estacionesdeservicioguatemala@gmail.com']
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
   }
 
   // 2. SOLO el email autorizado puede usar este endpoint
-  if (user.email !== AUTHORIZED_EMAIL) {
+  if (!AUTHORIZED_EMAILS.includes(user.email)) {
     return res.status(403).json({ error: 'Acceso denegado - funcionalidad restringida' })
   }
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/router'
 
-const AUTHORIZED_EMAIL = 'adoffice569@gmail.com'
+const AUTHORIZED_EMAILS = ['adoffice569@gmail.com', 'estacionesdeservicioguatemala@gmail.com']
 
 export default function VentasRetroactivas() {
   const router = useRouter()
@@ -49,7 +49,7 @@ export default function VentasRetroactivas() {
       }
       
       // SOLO email autorizado
-      if (user.email !== AUTHORIZED_EMAIL) {
+      if (!AUTHORIZED_EMAILS.includes(user.email)) {
         router.push('/dashboard')
         return
       }
