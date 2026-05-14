@@ -129,10 +129,10 @@ export default async function handler(req, res) {
 
       const lineas = []
       const productos = [
-        { galones: venta.regular_litros, ingresos: venta.regular_ingresos, nombre: 'Combustible Regular' },
-        { galones: venta.premium_litros, ingresos: venta.premium_ingresos, nombre: 'Combustible Premium' },
+        { galones: venta.regular_litros, ingresos: venta.regular_ingresos, nombre: 'Super' },
+        { galones: venta.premium_litros, ingresos: venta.premium_ingresos, nombre: 'V-Power' },
         { galones: venta.diesel_litros, ingresos: venta.diesel_ingresos, nombre: 'Diesel' },
-        { galones: venta.diesel_plus_litros, ingresos: venta.diesel_plus_ingresos, nombre: 'Diesel Plus' }
+        { galones: venta.diesel_plus_litros, ingresos: venta.diesel_plus_ingresos, nombre: 'Regular' }
       ]
       for (const p of productos) {
         const monto = parseFloat(p.ingresos || 0)

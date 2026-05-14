@@ -25,6 +25,7 @@ export default function VentasRetroactivas() {
     return ayer.toISOString().split('T')[0]
   })
   const [estacionId, setEstacionId] = useState('')
+  const [combustiblesEstacion, setCombustiblesEstacion] = useState(['super', 'vpower', 'diesel', 'regular'])
   const [notas, setNotas] = useState('')
 
   const [reg, setReg] = useState({ litros: '', ingresos: '' })
@@ -188,7 +189,14 @@ export default function VentasRetroactivas() {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1 font-medium">Estación</label>
-              <select value={estacionId} onChange={e => setEstacionId(e.target.value)}
+              <select value={estacionId} onChange={async (e) => {
+                  const newId = e.target.value
+                  setEstacionId(newId)
+                  if (newId) {
+                    const { data } = await supabase.from('estaciones').select('combustibles').eq('id', newId).single()
+                    setCombustiblesEstacion(data?.combustibles || [])
+                  }
+                }}
                 required
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
                 <option value="">-- Seleccionar --</option>
@@ -204,8 +212,10 @@ export default function VentasRetroactivas() {
           {categoria === 'combustible' && (
             <div className="bg-gray-50 border border-gray-100 rounded-lg p-4">
               <h3 className="font-medium text-gray-800 mb-3 text-sm">Combustible (galones e ingresos por producto)</h3>
-              {[['Regular', reg, setReg], ['Premium', pre, setPre],
-                ['Diesel', die, setDie], ['Diesel Plus', diep, setDiep]].map(([nombre, val, setter]) => (
+              {[['Super', reg, setReg, 'super'], ['V-Power', pre, setPre, 'vpower'],
+                ['Diesel', die, setDie, 'diesel'], ['Regular', diep, setDiep, 'regular']]
+                .filter(([_n, _v, _s, key]) => combustiblesEstacion.includes(key))
+                .map(([nombre, val, setter]) => (
                 <div key={nombre} className="flex gap-2 mb-2 items-center">
                   <span className="w-24 text-sm font-medium text-gray-700">{nombre}:</span>
                   <input type="number" step="0.01" placeholder="Galones" value={val.litros}
