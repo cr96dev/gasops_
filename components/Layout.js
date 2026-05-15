@@ -27,6 +27,11 @@ const adminItems = [
   { href: '/liquidaciones',label: 'Liquidaciones', icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' },
 ]
 
+const contabilidadItems = [
+  { href: '/contabilidad',        label: 'Centro contable', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+  { href: '/contabilidad/cuentas', label: 'Catálogo cuentas', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
+]
+
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
 
 function ModalCambioContrasena({ onClose }) {
@@ -52,7 +57,6 @@ function ModalCambioContrasena({ onClose }) {
 
     setGuardando(true)
 
-    // Verificar contraseña actual re-autenticando
     const { data: { user } } = await supabase.auth.getUser()
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: user.email,
@@ -65,7 +69,6 @@ function ModalCambioContrasena({ onClose }) {
       return
     }
 
-    // Actualizar contraseña
     const { error: updateError } = await supabase.auth.updateUser({ password: nueva })
     if (updateError) {
       setError('Error al cambiar la contraseña. Intenta de nuevo.')
@@ -236,6 +239,26 @@ export default function Layout({ children, perfil, estacion }) {
                   Cargas retroactivas
                 </button>
               )}
+
+              {/* NUEVO: sección Contabilidad */}
+              <div className="px-3 pt-3 pb-1 text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                Contabilidad
+                <span className="text-[9px] bg-green-100 text-green-700 px-1 py-0 rounded">NUEVO</span>
+              </div>
+              {contabilidadItems.map(item => {
+                const active = router.pathname === item.href
+                return (
+                  <button key={item.href} onClick={() => router.push(item.href)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                      active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                    </svg>
+                    {item.label}
+                  </button>
+                )
+              })}
             </>
           )}
 
@@ -357,6 +380,27 @@ export default function Layout({ children, perfil, estacion }) {
                     Cargas retroactivas
                   </button>
                 )}
+
+                {/* NUEVO: sección Contabilidad mobile */}
+                <div className="px-4 pt-2 pb-1 text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                  Contabilidad
+                  <span className="text-[9px] bg-green-100 text-green-700 px-1 py-0 rounded">NUEVO</span>
+                </div>
+                {contabilidadItems.map(item => {
+                  const active = router.pathname === item.href
+                  return (
+                    <button key={item.href}
+                      onClick={() => { router.push(item.href); setMenuAbierto(false) }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${
+                        active ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                      }`}>
+                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                      </svg>
+                      {item.label}
+                    </button>
+                  )
+                })}
               </>
             )}
             <div className="border-t border-gray-100 mt-2 pt-2 px-4 flex items-center justify-between">
