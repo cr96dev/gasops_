@@ -4,11 +4,12 @@ import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
 
+// Orden visual: Super -> Regular -> Diesel -> V-Power
 const todosLosCombustibles = [
-  { key: 'regular', label: 'Super', tipo: 'super' },
-  { key: 'premium', label: 'V-Power', tipo: 'vpower' },
-  { key: 'diesel', label: 'Diesel', tipo: 'diesel' },
+  { key: 'regular',     label: 'Super',   tipo: 'super' },
   { key: 'diesel_plus', label: 'Regular', tipo: 'regular' },
+  { key: 'diesel',      label: 'Diesel',  tipo: 'diesel' },
+  { key: 'premium',     label: 'V-Power', tipo: 'vpower' },
 ]
 
 const metodosPago = [
@@ -63,9 +64,12 @@ export default function Ventas({ session }) {
   const { toasts, toast } = useToast()
 
   // Combustibles disponibles según la estación
-  const combustibles = estacion?.combustibles
+  // V-Power solo se muestra en Oakland.
+  const esOakland = perfil?.estacion_id === OAKLAND_ID
+  const combustibles = (estacion?.combustibles
     ? todosLosCombustibles.filter(c => estacion.combustibles.includes(c.tipo))
-    : todosLosCombustibles.filter(c => c.tipo !== 'vpower')
+    : todosLosCombustibles
+  ).filter(c => c.tipo !== 'vpower' || esOakland)
 
   // Verifica si el registro fue creado por el bridge (formas de cobro en cero)
   function registroSinCobros(registro) {
