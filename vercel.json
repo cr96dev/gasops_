@@ -11,6 +11,10 @@
     {
       "path": "/api/qbo/conciliar/mensual",
       "schedule": "0 18 1 * *"
+    },
+    {
+      "path": "/api/contabilidad/cron-asientos-diarios",
+      "schedule": "0 9 * * *"
     }
   ],
   "functions": {
@@ -24,6 +28,9 @@
       "maxDuration": 60
     },
     "pages/api/qbo/conciliar/mensual.js": {
+      "maxDuration": 60
+    },
+    "pages/api/contabilidad/cron-asientos-diarios.js": {
       "maxDuration": 60
     }
   }
