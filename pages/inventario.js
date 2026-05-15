@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from ‘react’
-import { supabase } from ‘../lib/supabaseClient’
-import Layout from ‘../components/Layout’
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import Layout from '../components/Layout'
 
 export default function Inventario() {
 const [perfil, setPerfil] = useState(null)
@@ -9,11 +9,11 @@ const [inventario, setInventario] = useState([])
 const [cargando, setCargando] = useState(true)
 
 // Filtros
-const [tab, setTab] = useState(‘stock’)  // ‘stock’ | ‘entrega’ | ‘carga’
-const [vista, setVista] = useState(‘consolidada’)  // ‘consolidada’ | ‘estacion’
-const [estacionSel, setEstacionSel] = useState(’’)
-const [busqueda, setBusqueda] = useState(’’)
-const [categoria, setCategoria] = useState(‘todas’)
+const [tab, setTab] = useState('stock')  // 'stock' | 'entrega' | 'carga'
+const [vista, setVista] = useState('consolidada')  // 'consolidada' | 'estacion'
+const [estacionSel, setEstacionSel] = useState('')
+const [busqueda, setBusqueda] = useState('')
+const [categoria, setCategoria] = useState('todas')
 const [soloProblemas, setSoloProblemas] = useState(false)
 
 // ────────────────────────────────────────────────────────────
@@ -68,34 +68,34 @@ const set = new Set()
 inventario.forEach(i => {
 if (i.categoria) set.add(i.categoria)
 })
-return [‘todas’, …Array.from(set).sort()]
+return ['todas', …Array.from(set).sort()]
 }, [inventario])
 
 // ────────────────────────────────────────────────────────────
 // Helper: clasificar estado del stock
 // ────────────────────────────────────────────────────────────
 function estadoStock(stockActual, stockMinimo) {
-if (stockActual < 0) return ‘negativo’
-if (stockActual === 0) return ‘cero’
-if (stockMinimo > 0 && stockActual < stockMinimo) return ‘bajo’
-return ‘ok’
+if (stockActual < 0) return 'negativo'
+if (stockActual === 0) return 'cero'
+if (stockMinimo > 0 && stockActual < stockMinimo) return 'bajo'
+return 'ok'
 }
 
 function colorEstado(estado) {
 switch(estado) {
-case ‘negativo’: return ‘text-red-600 font-bold’
-case ‘cero’:     return ‘text-orange-500 font-semibold’
-case ‘bajo’:     return ‘text-yellow-600 font-semibold’
-default:         return ‘text-gray-900’
+case 'negativo': return 'text-red-600 font-bold'
+case 'cero':     return 'text-orange-500 font-semibold'
+case 'bajo':     return 'text-yellow-600 font-semibold'
+default:         return 'text-gray-900'
 }
 }
 
 function bgEstado(estado) {
 switch(estado) {
-case ‘negativo’: return ‘bg-red-50’
-case ‘cero’:     return ‘bg-orange-50’
-case ‘bajo’:     return ‘bg-yellow-50’
-default:         return ‘’
+case 'negativo': return 'bg-red-50'
+case 'cero':     return 'bg-orange-50'
+case 'bajo':     return 'bg-yellow-50'
+default:         return ''
 }
 }
 
@@ -133,7 +133,7 @@ return inventario
 .filter(i => parseFloat(i.stock_actual) < 0)
 .map(i => ({
 …i,
-estacion_nombre: estaciones.find(e => e.id === i.estacion_id)?.nombre || ‘?’
+estacion_nombre: estaciones.find(e => e.id === i.estacion_id)?.nombre || '?'
 }))
 .sort((a, b) => parseFloat(a.stock_actual) - parseFloat(b.stock_actual))  // más negativos primero
 }, [inventario, estaciones])
