@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
 
-// Orden visual: Super -> Regular -> Diesel -> V-Power
+// Orden visual: Super → Regular → Diesel → V-Power
+// (los campos BD mantienen sus nombres legacy: regular_litros=Super, diesel_plus_litros=Regular, etc)
 const todosLosCombustibles = [
   { key: 'regular',     label: 'Super',   tipo: 'super' },
   { key: 'diesel_plus', label: 'Regular', tipo: 'regular' },
@@ -31,6 +32,23 @@ const metodosPago = [
   { key: 'prueba_surtidor', label: 'Prueba de surtidor' },
 ]
 
+const ESTACIONES_AUTOMATICAS = [
+  'cef374e5-139b-4279-a62e-0fe9544c2fa2', // SS Brisas
+]
+
+// V-Power solo disponible en Oakland / Diagonal 6
+const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
+
+function getFechaGuatemala() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
+}
+
+function getAyerGuatemala() {
+  const hoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guatemala' }))
+  hoy.setDate(hoy.getDate() - 1)
+  return hoy.toLocaleDateString('en-CA')
+}
+
 export default function Ventas({ session }) {
   const router = useRouter()
   const [perfil, setPerfil] = useState(null)
@@ -39,7 +57,7 @@ export default function Ventas({ session }) {
   const [registroFecha, setRegistroFecha] = useState(null)
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0])
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(getFechaGuatemala())
   const [completandoCobros, setCompletandoCobros] = useState(false)
   const [form, setForm] = useState({
     regular_litros: '', regular_ingresos: '',
@@ -63,15 +81,18 @@ export default function Ventas({ session }) {
   })
   const { toasts, toast } = useToast()
 
-  // Combustibles disponibles según la estación
-  // V-Power solo se muestra en Oakland.
+  // V-Power solo se muestra en Oakland (Diagonal 6).
+  // Si la estación tiene un array `combustibles` definido, lo respetamos pero igualmente filtramos vpower fuera de Oakland.
   const esOakland = perfil?.estacion_id === OAKLAND_ID
   const combustibles = (estacion?.combustibles
     ? todosLosCombustibles.filter(c => estacion.combustibles.includes(c.tipo))
     : todosLosCombustibles
   ).filter(c => c.tipo !== 'vpower' || esOakland)
 
-  // Verifica si el registro fue creado por el bridge (formas de cobro en cero)
+  function esEstacionAutomatica() {
+    return ESTACIONES_AUTOMATICAS.includes(perfil?.estacion_id)
+  }
+
   function registroSinCobros(registro) {
     if (!registro) return false
     return metodosPago.every(m => !registro[m.key] || parseFloat(registro[m.key]) === 0)
@@ -109,38 +130,22 @@ export default function Ventas({ session }) {
     setRegistroFecha(data || null)
   }
 
-  function setField(key, val) {
-    setForm(f => ({ ...f, [key]: val }))
-  }
-
-  function setFieldCobro(key, val) {
-    setFormCobros(f => ({ ...f, [key]: val }))
-  }
+  function setField(key, val) { setForm(f => ({ ...f, [key]: val })) }
+  function setFieldCobro(key, val) { setFormCobros(f => ({ ...f, [key]: val })) }
 
   function totalGalones() {
     return combustibles.reduce((s, c) => s + (parseFloat(form[`${c.key}_litros`]) || 0), 0)
   }
-
   function totalIngresos() {
     return combustibles.reduce((s, c) => s + (parseFloat(form[`${c.key}_ingresos`]) || 0), 0)
   }
-
   function totalMetodos() {
     return metodosPago.reduce((s, m) => s + (parseFloat(form[m.key]) || 0), 0)
   }
-
   function totalMetodosCobros() {
     return metodosPago.reduce((s, m) => s + (parseFloat(formCobros[m.key]) || 0), 0)
   }
-
-  function diferencia() {
-    return totalIngresos() - totalMetodos()
-  }
-
-  function diferenciaCobros() {
-    const totalIng = combustibles.reduce((s, c) => s + parseFloat(registroFecha[`${c.key}_ingresos`] || 0), 0)
-    return totalIng - totalMetodosCobros()
-  }
+  function diferencia() { return totalIngresos() - totalMetodos() }
 
   async function guardar(e) {
     e.preventDefault()
@@ -176,7 +181,6 @@ export default function Ventas({ session }) {
     const payload = {}
     metodosPago.forEach(m => { payload[m.key] = parseFloat(formCobros[m.key]) || 0 })
     if (formCobros.notas) payload.notas = formCobros.notas
-
     const { error } = await supabase.from('ventas').update(payload).eq('id', registroFecha.id)
     if (error) {
       toast('Error al guardar formas de cobro.', 'error')
@@ -200,10 +204,12 @@ export default function Ventas({ session }) {
   const diff = diferencia()
   const totalI = totalIngresos()
   const totalM = totalMetodos()
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = getFechaGuatemala()
+  const ayer = getAyerGuatemala()
   const esHoy = fechaSeleccionada === hoy
   const esFuturo = fechaSeleccionada > hoy
   const sinCobros = registroSinCobros(registroFecha)
+  const automatica = esEstacionAutomatica()
 
   return (
     <Layout perfil={perfil} estacion={estacion}>
@@ -214,7 +220,6 @@ export default function Ventas({ session }) {
           <p className="text-sm text-gray-400">{estacion?.nombre}</p>
         </div>
 
-        {/* Selector de fecha */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4">
           <div className="flex items-center gap-4">
             <div className="flex-1">
@@ -229,12 +234,8 @@ export default function Ventas({ session }) {
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${esHoy ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 Hoy
               </button>
-              <button type="button" onClick={() => {
-                const ayer = new Date()
-                ayer.setDate(ayer.getDate() - 1)
-                setFechaSeleccionada(ayer.toISOString().split('T')[0])
-              }}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${!esHoy && fechaSeleccionada === new Date(Date.now() - 86400000).toISOString().split('T')[0] ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+              <button type="button" onClick={() => setFechaSeleccionada(ayer)}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${fechaSeleccionada === ayer ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                 Ayer
               </button>
             </div>
@@ -244,20 +245,13 @@ export default function Ventas({ session }) {
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span className="text-xs">Estás registrando ventas retroactivas para el {new Date(fechaSeleccionada + 'T12:00:00').toLocaleDateString('es-GT', { dateStyle: 'long' })}</span>
-            </div>
-          )}
-          {esFuturo && (
-            <div className="mt-2 flex items-center gap-2 text-red-500">
-              <span className="text-xs">No puedes registrar ventas para fechas futuras</span>
+              <span className="text-xs">Estás viendo el registro del {new Date(fechaSeleccionada + 'T12:00:00').toLocaleDateString('es-GT', { dateStyle: 'long' })}</span>
             </div>
           )}
         </div>
 
         {esFuturo ? null : registroFecha ? (
           <div className="space-y-4">
-
-            {/* Banner: registro automático sin cobros */}
             {sinCobros && !completandoCobros && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -269,15 +263,13 @@ export default function Ventas({ session }) {
                     <div className="text-xs text-blue-600 mt-0.5">Las ventas fueron extraídas del Wayne Fusion. Puedes ingresar las formas de cobro del día.</div>
                   </div>
                 </div>
-                <button
-                  onClick={() => setCompletandoCobros(true)}
+                <button onClick={() => setCompletandoCobros(true)}
                   className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap">
                   Ingresar cobros
                 </button>
               </div>
             )}
 
-            {/* Banner: registro completo */}
             {!sinCobros && (
               <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
                 <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -292,7 +284,6 @@ export default function Ventas({ session }) {
               </div>
             )}
 
-            {/* Resumen de combustibles */}
             <div className="bg-white rounded-xl border border-gray-100 p-5">
               <h2 className="text-sm font-medium text-gray-700 mb-3">Combustible vendido</h2>
               <div className="grid grid-cols-3 gap-2 mb-2">
@@ -318,7 +309,6 @@ export default function Ventas({ session }) {
               </div>
             </div>
 
-            {/* Formulario de formas de cobro (solo si está completando) */}
             {completandoCobros && (
               <form onSubmit={guardarCobros} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} className="space-y-4">
                 <div className="bg-white rounded-xl border border-gray-100 p-5">
@@ -364,14 +354,12 @@ export default function Ventas({ session }) {
                     })()}
                   </div>
                 </div>
-
                 <div className="bg-white rounded-xl border border-gray-100 p-5">
                   <label className="text-xs text-gray-500 block mb-1">Observaciones (opcional)</label>
                   <textarea value={formCobros.notas} onChange={e => setFieldCobro('notas', e.target.value)}
                     rows={2} placeholder="Notas del día..."
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 resize-none" />
                 </div>
-
                 <div className="flex justify-end gap-2">
                   <button type="button" onClick={() => setCompletandoCobros(false)}
                     className="text-sm px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
@@ -386,7 +374,6 @@ export default function Ventas({ session }) {
               </form>
             )}
 
-            {/* Formas de cobro ya ingresadas */}
             {!completandoCobros && !sinCobros && (
               <div className="bg-white rounded-xl border border-gray-100 p-5">
                 <h2 className="text-sm font-medium text-gray-700 mb-3">Formas de cobro</h2>
@@ -431,6 +418,16 @@ export default function Ventas({ session }) {
               </div>
             )}
           </div>
+
+        ) : automatica ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-8 text-center">
+            <svg className="w-10 h-10 text-blue-400 mx-auto mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21a48.309 48.309 0 01-8.135-.687c-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+            </svg>
+            <div className="text-sm font-medium text-blue-800 mb-1">Ventas automáticas</div>
+            <div className="text-xs text-blue-600 max-w-xs mx-auto">Las ventas de esta estación se extraen automáticamente del Wayne Fusion cada noche. No es necesario ingresar datos manualmente.</div>
+          </div>
+
         ) : (
           <form onSubmit={guardar} onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-100 p-5">
@@ -526,7 +523,6 @@ export default function Ventas({ session }) {
           </form>
         )}
 
-        {/* Historial */}
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mt-6">
           <div className="px-5 py-3 border-b border-gray-100">
             <h2 className="text-sm font-medium text-gray-700">Historial reciente</h2>
@@ -567,8 +563,8 @@ export default function Ventas({ session }) {
                       ))}
                       <td className="px-3 py-3 text-right font-medium text-gray-800">Q{Math.round(total).toLocaleString('es-GT')}</td>
                       <td className="px-3 py-3 text-center">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${Math.abs(dif) < 0.01 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                          {Math.abs(dif) < 0.01 ? 'OK' : `Q${dif.toFixed(2)}`}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${Math.abs(dif) < 0.01 ? 'bg-green-50 text-green-700' : cobros === 0 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+                          {Math.abs(dif) < 0.01 ? 'OK' : cobros === 0 ? 'Sin cobros' : `Q${dif.toFixed(2)}`}
                         </span>
                       </td>
                     </tr>
