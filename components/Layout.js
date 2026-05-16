@@ -31,6 +31,8 @@ const contabilidadItems = [
   { href: '/contabilidad',        label: 'Centro contable', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
   { href: '/contabilidad/cuentas', label: 'Catálogo cuentas', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
   { href: '/contabilidad/compras-pendientes', label: 'Compras pendientes', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+  { href: '/contabilidad/bancos', label: 'Bancos', icon: 'M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11m16-11v11M8 14v3m4-3v3m4-3v3' },
+  { href: '/contabilidad/liquidaciones-uno', label: 'Liquidaciones UNO', icon: 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M9 19l3 3m0 0l3-3m-3 3V10m6-7l-3 3m0 0l-3-3m3 3v11' },
 ]
 
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
