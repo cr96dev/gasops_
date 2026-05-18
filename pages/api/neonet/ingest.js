@@ -224,18 +224,19 @@ export default async function handler(req, res) {
 // ─── Parser PDF ─────────────────────────────────────────────────
 // Estado de cuenta Neonet trae listado de transacciones y total al final.
 // Pattern observado: "TOTAL ... Q1,234.56" o similar.
-// pdf-parse devuelve texto plano; aplicamos regex sobre el texto.
+// Usamos `unpdf` (basado en pdfjs-dist serverless, no requiere DOMMatrix)
 async function parsearPdfNeonet(base64) {
-  const pdfParse = (await import('pdf-parse')).default
+  const { extractText, getDocumentProxy } = await import('unpdf')
   const buffer = Buffer.from(base64, 'base64')
-  const data = await pdfParse(buffer)
-  const text = data.text
+  const pdf = await getDocumentProxy(new Uint8Array(buffer))
+  const { text: textArr } = await extractText(pdf, { mergePages: true })
+  const text = Array.isArray(textArr) ? textArr.join('\n') : String(textArr || '')
 
   // Total: buscar último "TOTAL" + monto, o suma de transacciones
   // Patron flexible — afinar despues con muestras reales
   const totalMatch = text.match(/TOTAL[\s:]*Q?\s*([\d,]+\.\d{2})/i)
   if (!totalMatch) {
-    throw new Error('No se encontró TOTAL en el PDF')
+    throw new Error('No se encontró TOTAL en el PDF. Texto extraído: ' + text.substring(0, 500))
   }
   const total_q = parseFloat(totalMatch[1].replace(/,/g, ''))
 
@@ -267,7 +268,7 @@ async function parsearPdfNeonet(base64) {
     }
   }
 
-  return { fecha_consumo, total_q, detalle }
+  return { fecha_consumo, total_q, detalle, _texto_completo: text }
 }
 
 // ─── Notificacion ───────────────────────────────────────────────
