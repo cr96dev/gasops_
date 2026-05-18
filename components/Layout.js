@@ -242,6 +242,17 @@ export default function Layout({ children, perfil, estacion }) {
                   Cargas retroactivas
                 </button>
               )}
+              {puedeVerCargasRetro && (
+                <button onClick={() => router.push('/admin/neonet')}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    router.pathname === '/admin/neonet' ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+                  </svg>
+                  Auditoría Neonet
+                </button>
+              )}
 
               {/* NUEVO: sección Contabilidad */}
               <div className="px-3 pt-3 pb-1 text-xs text-gray-400 uppercase tracking-wider flex items-center gap-2">
@@ -381,6 +392,17 @@ export default function Layout({ children, perfil, estacion }) {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                     Cargas retroactivas
+                  </button>
+                )}
+                {puedeVerCargasRetro && (
+                  <button onClick={() => { router.push('/admin/neonet'); setMenuAbierto(false) }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${
+                      router.pathname === '/admin/neonet' ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+                    </svg>
+                    Auditoría Neonet
                   </button>
                 )}
 
