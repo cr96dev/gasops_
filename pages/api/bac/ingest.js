@@ -8,7 +8,7 @@ import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { extractText, getDocumentProxy } from 'unpdf'
 
-export const config = { api: { bodyParser: { sizeLimit: '10mb' } } }
+export const config = { api: { bodyParser: false } }
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
