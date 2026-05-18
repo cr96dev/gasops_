@@ -56,6 +56,7 @@ export default function Ventas({ session }) {
   const [historial, setHistorial] = useState([])
   const [registroFecha, setRegistroFecha] = useState(null)
   const [neonetAuto, setNeonetAuto] = useState(false)
+  const [bacAuto, setBacAuto] = useState(false)
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [fechaSeleccionada, setFechaSeleccionada] = useState(getFechaGuatemala())
@@ -141,6 +142,17 @@ export default function Ventas({ session }) {
       .limit(1)
       .maybeSingle()
     setNeonetAuto(!!consumo)
+
+    // ¿El BAC de esta fila vino de la integración BAC automática?
+    const { data: bacRow } = await supabase.from('bac_consumos')
+      .select('id')
+      .eq('estacion_id', eid)
+      .eq('fecha_remision', fecha)
+      .eq('categoria', 'combustible')
+      .eq('estado', 'aplicado')
+      .limit(1)
+      .maybeSingle()
+    setBacAuto(!!bacRow)
   }
 
   function setField(key, val) { setForm(f => ({ ...f, [key]: val })) }
@@ -337,6 +349,9 @@ export default function Ventas({ session }) {
                         {m.key === 'neonet' && neonetAuto && (
                           <span title="Cargado automático desde Neonet" className="text-xs">✨</span>
                         )}
+                        {m.key === 'bac' && bacAuto && (
+                          <span title="Cargado automático desde BAC" className="text-xs">⚡</span>
+                        )}
                       </div>
                       <input type="number" min="0" step="0.01"
                         value={formCobros[m.key]}
@@ -404,6 +419,9 @@ export default function Ventas({ session }) {
                         {m.label}
                         {m.key === 'neonet' && neonetAuto && (
                           <span title="Cargado automático desde Neonet" className="text-xs">✨</span>
+                        )}
+                        {m.key === 'bac' && bacAuto && (
+                          <span title="Cargado automático desde BAC" className="text-xs">⚡</span>
                         )}
                       </span>
                       <span className="text-sm text-gray-800">Q{val.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
