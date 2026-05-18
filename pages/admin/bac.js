@@ -46,8 +46,11 @@ export default function AdminBac() {
   const [consumos, setConsumos] = useState([])
   const [refreshing, setRefreshing] = useState(false)
 
+  const [reintentandoId, setReintentandoId] = useState(null)
+  const [reintentandoMasivo, setReintentandoMasivo] = useState(false)
+  const [toast, setToast] = useState(null)
+
   useEffect(() => {
-    /* auth check movido a cargar() */
     cargar()
   }, [])
 
@@ -56,7 +59,9 @@ export default function AdminBac() {
   }, [perfil, fechaInicio, fechaFin, estacionFiltro, estadoFiltro, categoriaFiltro])
 
   async function cargar() {
-    const { data: { session } } = await supabase.auth.getSession(); if (!session?.user) { router.push("/"); return }; const { data: p } = await supabase.from("perfiles").select("*").eq("id", session.user.id).single()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) { router.push("/"); return }
+    const { data: p } = await supabase.from("perfiles").select("*").eq("id", session.user.id).single()
     setPerfil(p)
     if (p?.rol !== 'admin') {
       setLoading(false)
@@ -93,6 +98,87 @@ export default function AdminBac() {
     setRefreshing(false)
   }
 
+  function mostrarToast(tipo, texto) {
+    setToast({ tipo, texto })
+    setTimeout(() => setToast(null), 4500)
+  }
+
+  async function reintentarUno(consumoId) {
+    if (reintentandoId) return
+    setReintentandoId(consumoId)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        mostrarToast('error', 'Sesión inválida, recarga la página.')
+        setReintentandoId(null)
+        return
+      }
+      const resp = await fetch('/api/bac/reintentar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ consumo_id: consumoId })
+      })
+      const json = await resp.json()
+      if (!resp.ok) {
+        mostrarToast('error', json.error || 'Error al reintentar')
+      } else if (json.aplicado) {
+        mostrarToast('ok', `Aplicado: Q${parseFloat(json.valor_anterior).toFixed(2)} → Q${parseFloat(json.valor_nuevo).toFixed(2)}`)
+      } else {
+        mostrarToast('warn', json.mensaje || 'Aún sin fila destino')
+      }
+      await buscar()
+    } catch (e) {
+      mostrarToast('error', e.message)
+    } finally {
+      setReintentandoId(null)
+    }
+  }
+
+  async function reintentarTodos() {
+    const pendientes = consumos.filter(c => c.estado === 'sin_venta_destino')
+    if (pendientes.length === 0) {
+      mostrarToast('warn', 'No hay registros sin fila destino en el filtro actual.')
+      return
+    }
+    if (!confirm(`¿Reintentar ${pendientes.length} registros sin fila destino?`)) return
+
+    setReintentandoMasivo(true)
+    let aplicados = 0, sigueSinDestino = 0, errores = 0
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        mostrarToast('error', 'Sesión inválida, recarga la página.')
+        setReintentandoMasivo(false)
+        return
+      }
+      for (const c of pendientes) {
+        try {
+          const resp = await fetch('/api/bac/reintentar', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({ consumo_id: c.id })
+          })
+          const json = await resp.json()
+          if (!resp.ok) errores++
+          else if (json.aplicado) aplicados++
+          else sigueSinDestino++
+        } catch {
+          errores++
+        }
+      }
+      mostrarToast('ok', `Resultado: ${aplicados} aplicados, ${sigueSinDestino} aún sin destino, ${errores} errores.`)
+      await buscar()
+    } finally {
+      setReintentandoMasivo(false)
+    }
+  }
+
   if (loading) return <div className="p-8 text-gray-500">Cargando...</div>
   if (perfil?.rol !== 'admin') {
     return <Layout perfil={perfil}><div className="p-8 text-gray-700">Solo admin.</div></Layout>
@@ -108,17 +194,34 @@ export default function AdminBac() {
   const sumVentas = consumos
     .filter(c => c.estado === 'aplicado')
     .reduce((s, c) => s + parseFloat(c.total_ventas || 0), 0)
-  const sumNeto = consumos
-    .filter(c => c.estado === 'aplicado')
-    .reduce((s, c) => s + parseFloat(c.neto_pagado || 0), 0)
+
+  const toastCls = {
+    ok: 'bg-green-50 border-green-200 text-green-800',
+    warn: 'bg-amber-50 border-amber-200 text-amber-800',
+    error: 'bg-red-50 border-red-200 text-red-800',
+  }
 
   return (
     <Layout perfil={perfil}>
       <div className="px-4 py-6 max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-xl font-medium text-gray-900">Auditoría BAC</h1>
-          <p className="text-sm text-gray-500 mt-1">Liquidaciones BAC Credomatic procesadas desde email</p>
+        <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-xl font-medium text-gray-900">Auditoría BAC</h1>
+            <p className="text-sm text-gray-500 mt-1">Liquidaciones BAC Credomatic procesadas desde email</p>
+          </div>
+          {totalSinDestino > 0 && (
+            <button onClick={reintentarTodos} disabled={reintentandoMasivo || reintentandoId}
+              className="text-sm bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors">
+              {reintentandoMasivo ? 'Reintentando...' : `Reintentar ${totalSinDestino} sin destino`}
+            </button>
+          )}
         </div>
+
+        {toast && (
+          <div className={`mb-4 px-4 py-2 rounded-lg border text-sm ${toastCls[toast.tipo]}`}>
+            {toast.texto}
+          </div>
+        )}
 
         {/* Resumen */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
@@ -198,18 +301,21 @@ export default function AdminBac() {
                   <Th className="text-right">Comisión</Th>
                   <Th className="text-right">Neto</Th>
                   <Th>Estado</Th>
+                  <Th>Acción</Th>
                   <Th>Procesado</Th>
                 </tr>
               </thead>
               <tbody>
                 {consumos.length === 0 && (
-                  <tr><td colSpan={12} className="text-center text-gray-400 py-8 text-sm">
+                  <tr><td colSpan={13} className="text-center text-gray-400 py-8 text-sm">
                     {refreshing ? 'Cargando...' : 'No hay registros'}
                   </td></tr>
                 )}
                 {consumos.map(c => {
                   const est = ESTADO_LABEL[c.estado] || { txt: c.estado, cls: 'bg-gray-50 text-gray-700 border-gray-200' }
                   const cat = CAT_LABEL[c.categoria] || null
+                  const puedeReintentar = c.estado === 'sin_venta_destino'
+                  const estaReintentando = reintentandoId === c.id
                   return (
                     <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50/50">
                       <td className="px-3 py-2 text-gray-700">{c.fecha_remision}</td>
@@ -235,6 +341,15 @@ export default function AdminBac() {
                       <td className="px-3 py-2">
                         <span title={c.error_msg || ''}
                           className={`inline-block text-[10px] px-2 py-0.5 rounded border ${est.cls}`}>{est.txt}</span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {puedeReintentar ? (
+                          <button onClick={() => reintentarUno(c.id)}
+                            disabled={estaReintentando || reintentandoMasivo}
+                            className="text-[11px] px-2 py-1 rounded bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 disabled:opacity-50">
+                            {estaReintentando ? 'Reintentando...' : 'Reintentar'}
+                          </button>
+                        ) : '—'}
                       </td>
                       <td className="px-3 py-2 text-gray-400 text-xs">
                         {c.procesado_en ? new Date(c.procesado_en).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
