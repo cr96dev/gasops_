@@ -2,7 +2,14 @@
 //
 // Recibe un PDF de estado de cuenta Neonet en base64 desde el Apps Script,
 // lo parsea, resuelve afiliacion -> estacion + variante, y aplica el cobro
-// a la columna apropiada (ventas.neonet o ventas.neolink), con auditoria.
+// a la(s) columna(s) apropiada(s) (ventas.neonet, ventas.neonet_prepago o ventas.neolink),
+// con auditoria.
+//
+// El PDF Neonet trae un "RESUMEN POR PRODUCTO" con rubros separados:
+//   - 0-Ventas                       → ventas.neonet (suma con canje)
+//   - 4-Canje de Puntos o Millas     → ventas.neonet (suma con ventas)
+//   - 6-Prepago Shell Guatemala      → ventas.neonet_prepago
+// Para variante 'neolink' va todo a ventas.neolink.
 //
 // Seguridad: HMAC-SHA256 del body con NEONET_HMAC_SECRET.
 // Idempotencia: email_message_id es UNIQUE en neonet_consumos.
@@ -10,11 +17,10 @@
 import crypto from 'crypto'
 import { supabaseAdmin } from '../../../lib/qbo/supabaseAdmin'
 
-// Disable body parser para poder leer raw body y verificar HMAC
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '5mb'  // PDFs Neonet son pequeños, pero margen amplio
+      sizeLimit: '5mb'
     }
   }
 }
@@ -60,7 +66,7 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── 3. Idempotencia: ya procesamos este email? ───────────────
+  // ── 3. Idempotencia ──────────────────────────────────────────
   const { data: existente } = await supabaseAdmin
     .from('neonet_consumos')
     .select('id, estado')
@@ -93,9 +99,9 @@ export default async function handler(req, res) {
     return res.status(422).json({ error: 'No se pudo parsear el PDF', detalle: err.message })
   }
 
-  const { fecha_consumo, total_q, detalle } = parsedPdf
+  const { fecha_consumo, total_q, ventas_q, canje_q, prepago_q, detalle } = parsedPdf
 
-  // ── 5. Resolver afiliacion -> estacion + variante ────────────
+  // ── 5. Resolver afiliacion ───────────────────────────────────
   const { data: afiliacion } = await supabaseAdmin
     .from('neonet_afiliaciones')
     .select('estacion_id, variante, activo')
@@ -103,7 +109,6 @@ export default async function handler(req, res) {
     .maybeSingle()
 
   if (!afiliacion) {
-    // Afiliacion desconocida: registrar y notificar
     await supabaseAdmin.from('neonet_consumos').insert({
       afiliacion_codigo,
       fecha_consumo,
@@ -131,22 +136,35 @@ export default async function handler(req, res) {
   }
 
   const { estacion_id, variante } = afiliacion
-  const columna = variante === 'neolink' ? 'neolink' : 'neonet'
 
-  // ── 6. Buscar fila ventas para esa fecha+estacion ────────────
+  // ── 6. Determinar columnas y montos a aplicar ────────────────
+  // Para neolink: todo va a ventas.neolink (mantenemos comportamiento original)
+  // Para neonet: split entre ventas.neonet (ventas + canje) y ventas.neonet_prepago
+  const montoNeonet = ventas_q + canje_q  // 0-Ventas + 4-Canje
+  const montoPrepago = prepago_q          // 6-Prepago Shell Guatemala
+
+  const columnaPrincipal = variante === 'neolink' ? 'neolink' : 'neonet'
+  const valorPrincipal = variante === 'neolink' ? total_q : montoNeonet
+  const aplicarPrepago = variante !== 'neolink' && montoPrepago > 0
+
+  // ── 7. Buscar fila ventas ────────────────────────────────────
+  const selectCols = aplicarPrepago
+    ? `id, ${columnaPrincipal}, neonet_prepago`
+    : `id, ${columnaPrincipal}`
+
   const { data: ventaRow } = await supabaseAdmin
     .from('ventas')
-    .select(`id, ${columna}`)
+    .select(selectCols)
     .eq('fecha', fecha_consumo)
     .eq('estacion_id', estacion_id)
     .maybeSingle()
 
-  const valorAnterior = ventaRow ? parseFloat(ventaRow[columna] || 0) : null
-  const valorNuevo = total_q
+  const valorAnterior = ventaRow ? parseFloat(ventaRow[columnaPrincipal] || 0) : null
+  const valorAnteriorPrepago = ventaRow && aplicarPrepago ? parseFloat(ventaRow.neonet_prepago || 0) : null
+  const valorNuevo = valorPrincipal
   const diferencia = valorAnterior !== null ? valorNuevo - valorAnterior : null
 
   if (!ventaRow) {
-    // No existe fila ventas todavia. Dejar pendiente_destino.
     await supabaseAdmin.from('neonet_consumos').insert({
       afiliacion_codigo,
       fecha_consumo,
@@ -167,10 +185,19 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── 7. Aplicar update + audit en una transaccion logica ──────
+  // ── 8. Aplicar update ────────────────────────────────────────
+  const updatePayload = {
+    [columnaPrincipal]: valorNuevo,
+    qbo_processed: false,
+    qbo_processed_prod: false
+  }
+  if (aplicarPrepago) {
+    updatePayload.neonet_prepago = montoPrepago
+  }
+
   const { error: errUpdate } = await supabaseAdmin
     .from('ventas')
-    .update({ [columna]: valorNuevo, qbo_processed: false, qbo_processed_prod: false })
+    .update(updatePayload)
     .eq('id', ventaRow.id)
 
   if (errUpdate) {
@@ -216,15 +243,22 @@ export default async function handler(req, res) {
     variante,
     fecha_consumo,
     total_q,
+    ventas_q,
+    canje_q,
+    prepago_q,
+    aplicado_principal: { columna: columnaPrincipal, valor: valorNuevo },
+    aplicado_prepago: aplicarPrepago ? { columna: 'neonet_prepago', valor: montoPrepago } : null,
     valor_anterior: valorAnterior,
     diferencia
   })
 }
 
 // ─── Parser PDF ─────────────────────────────────────────────────
-// Estado de cuenta Neonet trae listado de transacciones y total al final.
-// Pattern observado: "TOTAL ... Q1,234.56" o similar.
-// Usamos `unpdf` (basado en pdfjs-dist serverless, no requiere DOMMatrix)
+// El PDF Neonet trae una sección "RESUMEN POR PRODUCTO" con rubros separados:
+//   0-Ventas                      → suma de ventas regulares con tarjeta
+//   4-Canje de Puntos o Millas    → canjes
+//   6-Prepago Shell Guatemala     → cargas/usos de prepago Shell
+//   TOTAL                         → suma de los tres
 async function parsearPdfNeonet(base64) {
   const { extractText, getDocumentProxy } = await import('unpdf')
   const buffer = Buffer.from(base64, 'base64')
@@ -232,35 +266,84 @@ async function parsearPdfNeonet(base64) {
   const { text: textArr } = await extractText(pdf, { mergePages: true })
   const text = Array.isArray(textArr) ? textArr.join('\n') : String(textArr || '')
 
-  // Total: buscar último "TOTAL" + monto, o suma de transacciones
-  // Patron flexible — afinar despues con muestras reales
-  const totalMatch = text.match(/TOTAL[\s:]*Q?\s*([\d,]+\.\d{2})/i)
-  if (!totalMatch) {
-    throw new Error('No se encontró TOTAL en el PDF. Texto extraído: ' + text.substring(0, 500))
+  // ─── Total general
+  // El formato típico es: "TOTAL <N> <MONTO> ..."
+  // Buscamos la última ocurrencia de TOTAL seguida de número con decimales
+  let total_q = null
+  const totalMatches = [...text.matchAll(/TOTAL[\s\S]{0,40}?([\d,]+\.\d{2})/gi)]
+  if (totalMatches.length > 0) {
+    // Tomamos el último match (suele ser el del resumen final)
+    total_q = parseFloat(totalMatches[totalMatches.length - 1][1].replace(/,/g, ''))
   }
-  const total_q = parseFloat(totalMatch[1].replace(/,/g, ''))
+  if (total_q === null) {
+    throw new Error('No se encontró TOTAL en el PDF. Texto: ' + text.substring(0, 500))
+  }
 
-  // Fecha consumo: buscar fecha al inicio del estado, formato DD/MM/YYYY o YYYY-MM-DD
-  // Asumimos que el PDF cubre 1 dia (el dia anterior al envio)
+  // ─── Rubros del resumen por producto
+  // Patrón observado: "0-Ventas <TRANS> <MONTO>" etc.
+  // Buscamos cada rubro de forma independiente y tolerante a saltos de línea/espacios.
+  let ventas_q = 0
+  let canje_q = 0
+  let prepago_q = 0
+
+  // 0-Ventas
+  const mVentas = text.match(/0-?\s*Ventas[\s\S]{0,60}?(\d+)\s+([\d,]+\.\d{2})/i)
+  if (mVentas) {
+    ventas_q = parseFloat(mVentas[2].replace(/,/g, ''))
+  }
+
+  // 4-Canje de Puntos o Millas
+  const mCanje = text.match(/4-?\s*Canje[\s\S]{0,60}?(\d+)\s+([\d,]+\.\d{2})/i)
+  if (mCanje) {
+    canje_q = parseFloat(mCanje[2].replace(/,/g, ''))
+  }
+
+  // 6-Prepago Shell Guatemala
+  const mPrepago = text.match(/6-?\s*Prepago[\s\S]{0,80}?(\d+)\s+([\d,]+\.\d{2})/i)
+  if (mPrepago) {
+    prepago_q = parseFloat(mPrepago[2].replace(/,/g, ''))
+  }
+
+  // Fallback: si no encontramos ningún rubro pero sí TOTAL, asumimos que todo es ventas
+  if (ventas_q === 0 && canje_q === 0 && prepago_q === 0) {
+    ventas_q = total_q
+  }
+
+  // Validación: la suma debería coincidir con TOTAL (tolerancia 1 centavo)
+  const sumaRubros = ventas_q + canje_q + prepago_q
+  if (Math.abs(sumaRubros - total_q) > 0.02) {
+    // No fallar; loguear y dejar total como referencia
+    console.warn('[neonet parser] Suma de rubros no coincide con TOTAL', {
+      sumaRubros, total_q, ventas_q, canje_q, prepago_q
+    })
+  }
+
+  // ─── Fecha consumo
+  // Buscar "Del DD/MM/YYYY" o cualquier fecha DD/MM/YYYY
   let fecha_consumo = null
-  const fechaMatch = text.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+  const fechaMatch = text.match(/Del\s+(\d{2})\/(\d{2})\/(\d{4})/i)
+    || text.match(/(\d{2})\/(\d{2})\/(\d{4})/)
   if (fechaMatch) {
     const [, dd, mm, yyyy] = fechaMatch
     fecha_consumo = `${yyyy}-${mm}-${dd}`
   } else {
-    // Fallback: ayer
-    const ayer = new Date(Date.now() - 24*60*60*1000)
+    const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000)
     fecha_consumo = ayer.toISOString().split('T')[0]
   }
 
-  // Detalle: extraer lineas de transacciones (best effort)
-  // Cada linea probablemente: <hora> <auth> <monto>
-  const detalle = []
+  // ─── Detalle (best effort)
+  const detalle = {
+    total_q,
+    ventas_q,
+    canje_q,
+    prepago_q,
+    transacciones: []
+  }
   const lineas = text.split('\n')
   for (const linea of lineas) {
     const m = linea.match(/^\s*(\d{2}:\d{2}(?::\d{2})?)\s+.*?Q?\s*([\d,]+\.\d{2})\s*$/)
     if (m) {
-      detalle.push({
+      detalle.transacciones.push({
         hora: m[1],
         monto: parseFloat(m[2].replace(/,/g, '')),
         linea_original: linea.trim()
@@ -268,7 +351,14 @@ async function parsearPdfNeonet(base64) {
     }
   }
 
-  return { fecha_consumo, total_q, detalle, _texto_completo: text }
+  return {
+    fecha_consumo,
+    total_q,
+    ventas_q,
+    canje_q,
+    prepago_q,
+    detalle
+  }
 }
 
 // ─── Notificacion ───────────────────────────────────────────────
