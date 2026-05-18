@@ -370,18 +370,29 @@ export default function Tienda({ session }) {
     try {
       const { ini, fin } = getRango()
 
-      // 1. Traer cobros diarios (tienda_ventas) + FEL agregado por dia
-      const [{ data: ventas }, { data: fels }] = await Promise.all([
-        supabase.from('tienda_ventas')
-          .select('fecha, efectivo, tarjeta, neonet, otros, notas')
-          .gte('fecha', ini).lte('fecha', fin)
-          .order('fecha'),
-        supabase.from('tienda_facturas_fel')
+      // 1. Traer cobros diarios (tienda_ventas) - pequeño, sin paginar
+      const { data: ventas } = await supabase.from('tienda_ventas')
+        .select('fecha, efectivo, tarjeta, neonet, otros, notas')
+        .gte('fecha', ini).lte('fecha', fin)
+        .order('fecha')
+
+      // 2. Traer FEL paginando (Supabase JS limita a 1000 filas por request)
+      const PAGE_SIZE = 1000
+      const fels = []
+      let from = 0
+      while (true) {
+        const { data: page, error } = await supabase.from('tienda_facturas_fel')
           .select('fecha, numero_factura, uuid_fel, nit_cliente, nombre_cliente, monto, estado, tipo_documento')
           .eq('estacion_id', OAKLAND_ID)
           .gte('fecha', ini).lte('fecha', fin)
           .order('fecha').order('numero_factura')
-      ])
+          .range(from, from + PAGE_SIZE - 1)
+        if (error) throw error
+        if (!page || page.length === 0) break
+        fels.push(...page)
+        if (page.length < PAGE_SIZE) break
+        from += PAGE_SIZE
+      }
 
       // 2. Hoja 1: resumen diario con cobros + FEL del dia
       const felPorDia = {}
