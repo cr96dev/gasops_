@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { useSession } from '@supabase/auth-helpers-react'
 import Layout from '../../components/Layout'
-import { supabase } from '../../lib/supabaseClient'
+import { supabase } from '../../lib/supabase'
 
 function getFechaGuatemala() {
   const d = new Date()
@@ -34,7 +33,6 @@ const CAT_LABEL = {
 
 export default function AdminBac() {
   const router = useRouter()
-  const session = useSession()
   const [perfil, setPerfil] = useState(null)
   const [estaciones, setEstaciones] = useState([])
   const [loading, setLoading] = useState(true)
@@ -49,16 +47,16 @@ export default function AdminBac() {
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
-    if (!session) { router.push('/'); return }
+    /* auth check movido a cargar() */
     cargar()
-  }, [session])
+  }, [])
 
   useEffect(() => {
     if (perfil) buscar()
   }, [perfil, fechaInicio, fechaFin, estacionFiltro, estadoFiltro, categoriaFiltro])
 
   async function cargar() {
-    const { data: p } = await supabase.from('perfiles').select('*').eq('id', session.user.id).single()
+    const { data: { session } } = await supabase.auth.getSession(); if (!session?.user) { router.push("/"); return }; const { data: p } = await supabase.from("perfiles").select("*").eq("id", session.user.id).single()
     setPerfil(p)
     if (p?.rol !== 'admin') {
       setLoading(false)
