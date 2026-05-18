@@ -25,6 +25,12 @@ function getHaceNDias(n) {
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
 }
 
+function formatFechaLabel(fechaStr) {
+  // 2026-05-17 -> "Sábado 17 de mayo"
+  const d = new Date(fechaStr + 'T12:00:00')
+  return d.toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Guatemala' })
+}
+
 function formatQ(n) {
   return 'Q' + parseFloat(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
@@ -34,10 +40,11 @@ export default function Lubricantes({ session }) {
   const [perfil, setPerfil] = useState(null)
   const [estacion, setEstacion] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('ayer')
-  const [ventasAyer, setVentasAyer] = useState([])
-  const [ventaAyerRow, setVentaAyerRow] = useState(null)
-  const [cargandoAyer, setCargandoAyer] = useState(false)
+  const [tab, setTab] = useState('dia')
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(getAyerGuatemala())
+  const [ventasDia, setVentasDia] = useState([])
+  const [ventaDiaRow, setVentaDiaRow] = useState(null)
+  const [cargandoDia, setCargandoDia] = useState(false)
   const [fechaInicio, setFechaInicio] = useState(getHaceNDias(30))
   const [fechaFin, setFechaFin] = useState(getAyerGuatemala())
   const [agrupacion, setAgrupacion] = useState('dia')
@@ -68,42 +75,40 @@ export default function Lubricantes({ session }) {
 
   useEffect(() => {
     if (!estacionId) return
-    if (tab === 'ayer') cargarAyer(estacionId)
+    if (tab === 'dia') cargarDia(estacionId, fechaSeleccionada)
     if (tab === 'historial') cargarHistorial(estacionId, fechaInicio, fechaFin, agrupacion)
-  }, [estacionId, tab])
+  }, [estacionId, tab, fechaSeleccionada])
 
   useEffect(() => {
     if (!estacionId || tab !== 'historial') return
     cargarHistorial(estacionId, fechaInicio, fechaFin, agrupacion)
   }, [fechaInicio, fechaFin, agrupacion])
 
-  async function cargarAyer(eid) {
-    setCargandoAyer(true)
-    const ayer = getAyerGuatemala()
+  async function cargarDia(eid, fecha) {
+    setCargandoDia(true)
 
     const { data: items } = await supabase
       .from('facturas_fel_items')
       .select('descripcion, cantidad, total')
       .eq('estacion_id', eid)
-      .eq('fecha', ayer)
+      .eq('fecha', fecha)
     const mapa = {}
     for (const item of (items || [])) {
-      // 2026-05-17: filtro removido para no ocultar productos validos
       if (!mapa[item.descripcion]) mapa[item.descripcion] = { descripcion: item.descripcion, cantidad: 0, total: 0 }
       mapa[item.descripcion].cantidad += parseFloat(item.cantidad) || 0
       mapa[item.descripcion].total += parseFloat(item.total) || 0
     }
-    setVentasAyer(Object.values(mapa).sort((a, b) => b.total - a.total))
+    setVentasDia(Object.values(mapa).sort((a, b) => b.total - a.total))
 
     const { data: vl } = await supabase
       .from('ventas_lubricantes')
       .select('id, fecha, total_venta, efectivo, neonet')
       .eq('estacion_id', eid)
-      .eq('fecha', ayer)
+      .eq('fecha', fecha)
       .maybeSingle()
-    setVentaAyerRow(vl || null)
+    setVentaDiaRow(vl || null)
 
-    setCargandoAyer(false)
+    setCargandoDia(false)
   }
 
   async function cargarHistorial(eid, ini, fin, agrup) {
@@ -171,21 +176,21 @@ export default function Lubricantes({ session }) {
       .eq('id', editandoVenta.id)
     setGuardando(false)
     if (error) {
-      setErrorGuardar(error.message || 'No se pudo guardar. Verifica que sea una venta de hoy o ayer de tu estación.')
+      setErrorGuardar(error.message || 'No se pudo guardar. Verifica que sea una venta de los últimos 14 días de tu estación.')
       return
     }
     cerrarEditor()
-    if (estacionId) cargarAyer(estacionId)
+    if (estacionId) cargarDia(estacionId, fechaSeleccionada)
   }
 
-  const totalAyer = ventasAyer.reduce((s, v) => s + v.total, 0)
-  const unidadesAyer = ventasAyer.reduce((s, v) => s + v.cantidad, 0)
+  const totalDia = ventasDia.reduce((s, v) => s + v.total, 0)
+  const unidadesDia = ventasDia.reduce((s, v) => s + v.cantidad, 0)
 
   const hoy = getHoyGuatemala()
-  const ayer = getAyerGuatemala()
-  const puedeEditarVentaAyer = ventaAyerRow && (
+  const hace14 = getHaceNDias(14)
+  const puedeEditarVentaDia = ventaDiaRow && (
     perfil?.rol === 'admin' ||
-    ventaAyerRow.fecha === hoy || ventaAyerRow.fecha === ayer
+    (ventaDiaRow.fecha >= hace14 && ventaDiaRow.fecha <= hoy)
   )
 
   const totalCobrosEdit = (parseFloat(editEfectivo) || 0) + (parseFloat(editNeonet) || 0)
@@ -207,7 +212,7 @@ export default function Lubricantes({ session }) {
         </div>
 
         <div className="flex gap-1 border-b border-gray-100">
-          {[['ayer', 'Ayer'], ['historial', 'Historial']].map(([key, label]) => (
+          {[['dia', 'Día'], ['historial', 'Historial']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm border-b-2 transition-colors ${tab === key ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
               {label}
@@ -215,49 +220,74 @@ export default function Lubricantes({ session }) {
           ))}
         </div>
 
-        {/* ── Tab: Ayer ── */}
-        {tab === 'ayer' && (
+        {/* ── Tab: Día ── */}
+        {tab === 'dia' && (
           <>
+            {/* Selector de fecha (hasta 14 días atrás) */}
+            <div className="bg-white rounded-xl border border-gray-100 p-4">
+              <label className="text-xs text-gray-500 block mb-2">Fecha a consultar / cargar</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input type="date" value={fechaSeleccionada}
+                  min={getHaceNDias(14)} max={getHoyGuatemala()}
+                  onChange={e => setFechaSeleccionada(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-400" />
+                <button type="button" onClick={() => setFechaSeleccionada(getAyerGuatemala())}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                  Ayer
+                </button>
+                <button type="button" onClick={() => setFechaSeleccionada(getHoyGuatemala())}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                  Hoy
+                </button>
+                <span className="text-xs text-gray-400 ml-1">
+                  {formatFechaLabel(fechaSeleccionada)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Puedes cargar formas de cobro de hasta 14 días atrás.
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <div className="text-xs text-gray-400 mb-1">Total vendido ayer</div>
-                <div className="text-2xl font-bold text-gray-900">{formatQ(totalAyer)}</div>
+                <div className="text-xs text-gray-400 mb-1">Total vendido</div>
+                <div className="text-2xl font-bold text-gray-900">{formatQ(totalDia)}</div>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 p-4">
                 <div className="text-xs text-gray-400 mb-1">Unidades vendidas</div>
-                <div className="text-2xl font-bold text-gray-900">{unidadesAyer.toLocaleString('es-GT')}</div>
+                <div className="text-2xl font-bold text-gray-900">{unidadesDia.toLocaleString('es-GT')}</div>
               </div>
             </div>
 
             {/* Formas de cobro */}
-            {ventaAyerRow ? (
+            {ventaDiaRow ? (
               <div className="bg-white rounded-xl border border-gray-100 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-medium text-gray-700">Formas de cobro</h2>
-                  {puedeEditarVentaAyer && (
-                    <button onClick={() => abrirEditor(ventaAyerRow)}
+                  {puedeEditarVentaDia && (
+                    <button onClick={() => abrirEditor(ventaDiaRow)}
                       className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                      {(ventaAyerRow.efectivo > 0 || ventaAyerRow.neonet > 0) ? 'Editar' : 'Cargar formas de cobro'}
+                      {(ventaDiaRow.efectivo > 0 || ventaDiaRow.neonet > 0) ? 'Editar' : 'Cargar formas de cobro'}
                     </button>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-sm">
                   <div>
                     <div className="text-xs text-gray-400 mb-0.5">Efectivo</div>
-                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow.efectivo)}</div>
+                    <div className="font-medium text-gray-800">{formatQ(ventaDiaRow.efectivo)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-400 mb-0.5">Neonet</div>
-                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow.neonet)}</div>
+                    <div className="font-medium text-gray-800">{formatQ(ventaDiaRow.neonet)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-400 mb-0.5">Total venta</div>
-                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow.total_venta)}</div>
+                    <div className="font-medium text-gray-800">{formatQ(ventaDiaRow.total_venta)}</div>
                   </div>
                 </div>
                 {(() => {
-                  const cobros = (parseFloat(ventaAyerRow.efectivo) || 0) + (parseFloat(ventaAyerRow.neonet) || 0)
-                  const tv = parseFloat(ventaAyerRow.total_venta) || 0
+                  const cobros = (parseFloat(ventaDiaRow.efectivo) || 0) + (parseFloat(ventaDiaRow.neonet) || 0)
+                  const tv = parseFloat(ventaDiaRow.total_venta) || 0
                   const diff = tv - cobros
                   if (cobros === 0) return (
                     <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-amber-600">
@@ -275,21 +305,21 @@ export default function Lubricantes({ session }) {
                 })()}
               </div>
             ) : (
-              !cargandoAyer && (
+              !cargandoDia && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
-                  Aún no hay registro de venta de lubricantes para ayer en esta estación. La sincronización desde Infile corre cada noche.
+                  Aún no hay registro de venta de lubricantes para esta fecha en tu estación. La sincronización desde Infile corre cada noche.
                 </div>
               )
             )}
 
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-gray-700">Productos vendidos ayer — {getAyerGuatemala()}</h2>
-                {cargandoAyer && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
+                <h2 className="text-sm font-medium text-gray-700">Productos vendidos — {fechaSeleccionada}</h2>
+                {cargandoDia && <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
               </div>
-              {ventasAyer.length === 0 ? (
+              {ventasDia.length === 0 ? (
                 <div className="py-10 text-center text-sm text-gray-400">
-                  {cargandoAyer ? 'Cargando...' : 'Sin ventas de lubricantes ayer'}
+                  {cargandoDia ? 'Cargando...' : 'Sin ventas de lubricantes en esta fecha'}
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -301,7 +331,7 @@ export default function Lubricantes({ session }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {ventasAyer.map((v, i) => (
+                    {ventasDia.map((v, i) => (
                       <tr key={i} className="border-b border-gray-50">
                         <td className="px-5 py-3 text-gray-700 text-xs">{v.descripcion}</td>
                         <td className="px-3 py-3 text-center text-gray-600 text-xs">{parseFloat(v.cantidad).toLocaleString('es-GT')}</td>
@@ -310,8 +340,8 @@ export default function Lubricantes({ session }) {
                     ))}
                     <tr className="bg-gray-50 border-t border-gray-100">
                       <td className="px-5 py-3 text-xs font-semibold text-gray-700">Total</td>
-                      <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700">{unidadesAyer.toLocaleString('es-GT')}</td>
-                      <td className="px-5 py-3 text-right text-sm font-bold text-gray-900">{formatQ(totalAyer)}</td>
+                      <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700">{unidadesDia.toLocaleString('es-GT')}</td>
+                      <td className="px-5 py-3 text-right text-sm font-bold text-gray-900">{formatQ(totalDia)}</td>
                     </tr>
                   </tbody>
                 </table>
