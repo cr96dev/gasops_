@@ -55,6 +55,7 @@ export default function Ventas({ session }) {
   const [estacion, setEstacion] = useState(null)
   const [historial, setHistorial] = useState([])
   const [registroFecha, setRegistroFecha] = useState(null)
+  const [neonetAuto, setNeonetAuto] = useState(false)
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [fechaSeleccionada, setFechaSeleccionada] = useState(getFechaGuatemala())
@@ -128,6 +129,18 @@ export default function Ventas({ session }) {
     const { data } = await supabase.from('ventas').select('*')
       .eq('estacion_id', eid).eq('fecha', fecha).single()
     setRegistroFecha(data || null)
+
+    // ¿El neonet de esta fila vino del PDF Neonet automático?
+    const { data: consumo } = await supabase.from('neonet_consumos')
+      .select('id, total_q, valor_nuevo')
+      .eq('estacion_id', eid)
+      .eq('fecha_consumo', fecha)
+      .eq('variante', 'neonet')
+      .eq('estado', 'aplicado')
+      .order('procesado_en', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    setNeonetAuto(!!consumo)
   }
 
   function setField(key, val) { setForm(f => ({ ...f, [key]: val })) }
@@ -319,7 +332,12 @@ export default function Ventas({ session }) {
                   </div>
                   {metodosPago.map(m => (
                     <div key={m.key} className="grid grid-cols-2 gap-2 mb-2">
-                      <div className="flex items-center text-sm text-gray-700">{m.label}</div>
+                      <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                        {m.label}
+                        {m.key === 'neonet' && neonetAuto && (
+                          <span title="Cargado automático desde Neonet" className="text-xs">✨</span>
+                        )}
+                      </div>
                       <input type="number" min="0" step="0.01"
                         value={formCobros[m.key]}
                         onChange={e => setFieldCobro(m.key, e.target.value)}
@@ -382,7 +400,12 @@ export default function Ventas({ session }) {
                   if (val === 0) return null
                   return (
                     <div key={m.key} className="flex justify-between py-1.5 border-b border-gray-50">
-                      <span className="text-sm text-gray-600">{m.label}</span>
+                      <span className="text-sm text-gray-600 flex items-center gap-1.5">
+                        {m.label}
+                        {m.key === 'neonet' && neonetAuto && (
+                          <span title="Cargado automático desde Neonet" className="text-xs">✨</span>
+                        )}
+                      </span>
                       <span className="text-sm text-gray-800">Q{val.toLocaleString('es-GT', { maximumFractionDigits: 2 })}</span>
                     </div>
                   )
