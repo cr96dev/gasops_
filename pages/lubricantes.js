@@ -3,24 +3,11 @@ import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 
-const PRODUCTOS_INVENTARIO = new Set([
-  'LIQUIDO DE FRENOS', 'POWER STEERING 12 ONZAS', 'TP COOLANT 50/50 1 LITRO',
-  'TP COOLANT 50/50 1 GALON', 'SHELL ADVANCE S2 DOS TT LITRO', 'SHELL ADVANCE AX5 4T 20W50 LITRO',
-  'HELIX HX3 SAE 40 LITRO', 'HELIX HX8 5W-30 LITRO', 'HELIX HX5 20W-50 GALÓN',
-  'HELIX HX5 20W-50 LITRO', 'HELIX HX7 SN 10W-30 AZUL GALÓN', 'HELIX HX7 SN 10W-30 AZUL LITRO',
-  'RIMULA R4X 15W-40 GRIS GALÓN', 'RIMULA R4X 15W-40 GRIS LITRO', 'SHELL SPIRAX S5 ATF X',
-  'UNO Ultra 10W-30 1 LITRO', 'UNO Ultra 10W-30 GALON', 'UNO Impulse 4T 20W-50 1 LITRO',
-  'UNO Ultra 20W-50 1 LITRO', 'UNO Ultra 20W-50 1 GALON', 'UNO Ultra 40 1 LITRO',
-  'UNO Ultra 40 1 GALON', 'UNO Synchron ATF 1 LITRO', 'TP Brake Fluid PINTA 12 OZ',
-  'TP Power Steering F PINTA 12 OZ', 'UNO Forza 15W-40 1 LITRO', 'UNO Forza 50 1 LITRO',
-  'UNO ULTRA FULL SYNT 5W-30', 'FORZA EURO SAE 5W-40 1 LITRO', 'UNO Impulse 2T LITRO',
-  'HELIX HX3 SAE 40 GALÓN', 'HELIX HX3 25W-60 LITRO', 'HELIX HX3 25W-60 GALÓN',
-  'HELIX ULTRA 5W-30 LITRO', 'HELIX ULTRA 5W-30 GALÓN', 'HELIX ULTRA 5W-40 LITRO',
-  'HELIX ULTRA 5W-40 GALÓN', 'UNO Ultra 15W-40 1 GALON', 'REFRIGERANTE TOP GUARD',
-  'SHELL SPIRAX S3 ATF MD3 LITRO', 'SHELL ADVANCE SAE 10W-40 ULTRA',
-  'Prodin Activador Electrolitico 18oz', 'Prodin Agua Destilada 18oz',
-  'PLUMILLAS BOSCH', 'Garantía x Lluvia',
-])
+// REMOVIDO 2026-05-17: Filtro PRODUCTOS_INVENTARIO hardcoded.
+// Causaba que items con typos de encoding INFILE (e.g. "GALNN" vs "GALÓN")
+// o productos nuevos (e.g. "Cubeta Forza 25W60") quedaran ocultos en la UI
+// aunque estuvieran correctamente cargados en BD.
+// Ahora mostramos TODOS los items de facturas_fel_items para la fecha/estacion.
 
 function getHoyGuatemala() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' })
@@ -48,18 +35,15 @@ export default function Lubricantes({ session }) {
   const [estacion, setEstacion] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('ayer')
-
   const [ventasAyer, setVentasAyer] = useState([])
   const [ventaAyerRow, setVentaAyerRow] = useState(null)
   const [cargandoAyer, setCargandoAyer] = useState(false)
-
   const [fechaInicio, setFechaInicio] = useState(getHaceNDias(30))
   const [fechaFin, setFechaFin] = useState(getAyerGuatemala())
   const [agrupacion, setAgrupacion] = useState('dia')
   const [historial, setHistorial] = useState([])
   const [cargandoHistorial, setCargandoHistorial] = useState(false)
   const [detalleAbierto, setDetalleAbierto] = useState(null)
-
   const [estacionId, setEstacionId] = useState(null)
 
   // Modal de edición de formas de cobro
@@ -68,7 +52,6 @@ export default function Lubricantes({ session }) {
   const [editNeonet, setEditNeonet] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [errorGuardar, setErrorGuardar] = useState('')
-  const [creandoFila, setCreandoFila] = useState(false)
 
   useEffect(() => {
     if (!session) { router.push('/'); return }
@@ -103,10 +86,9 @@ export default function Lubricantes({ session }) {
       .select('descripcion, cantidad, total')
       .eq('estacion_id', eid)
       .eq('fecha', ayer)
-
     const mapa = {}
     for (const item of (items || [])) {
-      if (!PRODUCTOS_INVENTARIO.has(item.descripcion)) continue
+      // 2026-05-17: filtro removido para no ocultar productos validos
       if (!mapa[item.descripcion]) mapa[item.descripcion] = { descripcion: item.descripcion, cantidad: 0, total: 0 }
       mapa[item.descripcion].cantidad += parseFloat(item.cantidad) || 0
       mapa[item.descripcion].total += parseFloat(item.total) || 0
@@ -134,8 +116,7 @@ export default function Lubricantes({ session }) {
       .lte('fecha', fin)
       .order('fecha', { ascending: false })
 
-    const filtrado = (data || []).filter(i => PRODUCTOS_INVENTARIO.has(i.descripcion))
-
+    const filtrado = (data || [])  // 2026-05-17: sin filtro de set hardcoded
     const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
     const mapa = {}
@@ -164,49 +145,10 @@ export default function Lubricantes({ session }) {
     setCargandoHistorial(false)
   }
 
-  // Crea la fila en ventas_lubricantes si no existe (autosuficiente: no depende del Apps Script)
-  async function asegurarVentaAyerRow() {
-    if (ventaAyerRow) return ventaAyerRow
-    if (!estacionId) return null
-
-    setCreandoFila(true)
-    const ayer = getAyerGuatemala()
-    const totalCalculado = ventasAyer.reduce((s, v) => s + (parseFloat(v.total) || 0), 0)
-
-    const { data, error } = await supabase
-      .from('ventas_lubricantes')
-      .insert({
-        estacion_id: estacionId,
-        fecha: ayer,
-        total_venta: parseFloat(totalCalculado.toFixed(2)),
-        efectivo: 0,
-        neonet: 0,
-        notas: 'Generada desde frontend - falta cargar formas de cobro',
-      })
-      .select('id, fecha, total_venta, efectivo, neonet')
-      .single()
-
-    setCreandoFila(false)
-
-    if (error) {
-      setErrorGuardar(error.message || 'No se pudo crear el registro de venta. Verifica permisos.')
-      return null
-    }
-
-    setVentaAyerRow(data)
-    return data
-  }
-
-  async function abrirEditor(venta) {
-    let v = venta
-    // Si no hay fila aún, crearla primero (con total calculado desde FEL)
-    if (!v) {
-      v = await asegurarVentaAyerRow()
-      if (!v) return
-    }
-    setEditandoVenta(v)
-    setEditEfectivo(v.efectivo > 0 ? String(v.efectivo) : '')
-    setEditNeonet(v.neonet > 0 ? String(v.neonet) : '')
+  function abrirEditor(venta) {
+    setEditandoVenta(venta)
+    setEditEfectivo(venta.efectivo > 0 ? String(venta.efectivo) : '')
+    setEditNeonet(venta.neonet > 0 ? String(venta.neonet) : '')
     setErrorGuardar('')
   }
 
@@ -241,17 +183,13 @@ export default function Lubricantes({ session }) {
 
   const hoy = getHoyGuatemala()
   const ayer = getAyerGuatemala()
-  const puedeEditarVentaAyer = perfil?.rol === 'admin' || (
-    ventaAyerRow ? (ventaAyerRow.fecha === hoy || ventaAyerRow.fecha === ayer) : true
+  const puedeEditarVentaAyer = ventaAyerRow && (
+    perfil?.rol === 'admin' ||
+    ventaAyerRow.fecha === hoy || ventaAyerRow.fecha === ayer
   )
 
   const totalCobrosEdit = (parseFloat(editEfectivo) || 0) + (parseFloat(editNeonet) || 0)
   const diffEdit = editandoVenta ? (parseFloat(editandoVenta.total_venta) || 0) - totalCobrosEdit : 0
-
-  // Mostramos la sección de formas de cobro si:
-  //   - existe una fila ya en ventas_lubricantes, O
-  //   - hay ventas reales en FEL para ayer (aunque la fila aún no exista, el gerente puede crearla con el botón)
-  const debeMostrarFormasCobro = ventaAyerRow || (!cargandoAyer && ventasAyer.length > 0)
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -262,6 +200,7 @@ export default function Lubricantes({ session }) {
   return (
     <Layout perfil={perfil} estacion={estacion}>
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Lubricantes</h1>
           <p className="text-sm text-gray-400 mt-0.5">{estacion?.nombre} · Ventas desde Infile</p>
@@ -291,42 +230,34 @@ export default function Lubricantes({ session }) {
             </div>
 
             {/* Formas de cobro */}
-            {debeMostrarFormasCobro ? (
+            {ventaAyerRow ? (
               <div className="bg-white rounded-xl border border-gray-100 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-medium text-gray-700">Formas de cobro</h2>
                   {puedeEditarVentaAyer && (
-                    <button
-                      onClick={() => abrirEditor(ventaAyerRow)}
-                      disabled={creandoFila}
-                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
-                      {creandoFila
-                        ? 'Preparando...'
-                        : (ventaAyerRow && (ventaAyerRow.efectivo > 0 || ventaAyerRow.neonet > 0))
-                          ? 'Editar'
-                          : 'Cargar formas de cobro'}
+                    <button onClick={() => abrirEditor(ventaAyerRow)}
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                      {(ventaAyerRow.efectivo > 0 || ventaAyerRow.neonet > 0) ? 'Editar' : 'Cargar formas de cobro'}
                     </button>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-sm">
                   <div>
                     <div className="text-xs text-gray-400 mb-0.5">Efectivo</div>
-                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow?.efectivo)}</div>
+                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow.efectivo)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-400 mb-0.5">Neonet</div>
-                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow?.neonet)}</div>
+                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow.neonet)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-400 mb-0.5">Total venta</div>
-                    <div className="font-medium text-gray-800">
-                      {formatQ(ventaAyerRow?.total_venta ?? totalAyer)}
-                    </div>
+                    <div className="font-medium text-gray-800">{formatQ(ventaAyerRow.total_venta)}</div>
                   </div>
                 </div>
                 {(() => {
-                  const cobros = (parseFloat(ventaAyerRow?.efectivo) || 0) + (parseFloat(ventaAyerRow?.neonet) || 0)
-                  const tv = parseFloat(ventaAyerRow?.total_venta ?? totalAyer) || 0
+                  const cobros = (parseFloat(ventaAyerRow.efectivo) || 0) + (parseFloat(ventaAyerRow.neonet) || 0)
+                  const tv = parseFloat(ventaAyerRow.total_venta) || 0
                   const diff = tv - cobros
                   if (cobros === 0) return (
                     <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-amber-600">
@@ -342,16 +273,11 @@ export default function Lubricantes({ session }) {
                     </div>
                   )
                 })()}
-                {errorGuardar && !editandoVenta && (
-                  <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
-                    {errorGuardar}
-                  </div>
-                )}
               </div>
             ) : (
               !cargandoAyer && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
-                  Aún no hay registro de venta de lubricantes para ayer en esta estación.
+                  Aún no hay registro de venta de lubricantes para ayer en esta estación. La sincronización desde Infile corre cada noche.
                 </div>
               )
             )}
@@ -391,7 +317,6 @@ export default function Lubricantes({ session }) {
                 </table>
               )}
             </div>
-
             <p className="text-xs text-gray-400 text-center">Los datos se sincronizan automáticamente cada noche desde Infile</p>
           </>
         )}
@@ -451,6 +376,7 @@ export default function Lubricantes({ session }) {
                         </svg>
                       </div>
                     </button>
+
                     {detalleAbierto === h.periodo && (
                       <div className="border-t border-gray-100 px-5 py-3 bg-gray-50">
                         <table className="w-full text-xs">
@@ -499,9 +425,11 @@ export default function Lubricantes({ session }) {
                   </svg>
                 </button>
               </div>
+
               <p className="text-xs text-gray-500">
                 Venta del {editandoVenta.fecha} · Total {formatQ(editandoVenta.total_venta)}
               </p>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">Efectivo (Q)</label>
@@ -553,6 +481,7 @@ export default function Lubricantes({ session }) {
             </div>
           </div>
         )}
+
       </div>
     </Layout>
   )
