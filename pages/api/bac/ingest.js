@@ -127,19 +127,9 @@ export default async function handler(req, res) {
   // HMAC
   const sig = req.headers['x-gasops-signature']
   if (!verifyHmac(rawBody, sig)) {
-    const secret = process.env.BAC_HMAC_SECRET || ''
-    return res.status(401).json({
-      error: 'invalid signature',
-      debug: {
-        secretLength: secret.length,
-        secretFirst4: secret.substring(0, 4),
-        secretLast4: secret.substring(secret.length - 4),
-        sigReceivedLength: (sig || '').length,
-        sigReceivedFirst8: (sig || '').substring(0, 8)
-      }
-    })
+    return res.status(401).json({ error: 'invalid signature' })
   }
-
+ 
   let payload
   try { payload = JSON.parse(rawBody) } catch { return res.status(400).json({ error: 'invalid json' }) }
 
