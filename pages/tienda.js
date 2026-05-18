@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import Layout from '../components/Layout'
 import { useToast, ToastContainer } from '../components/Toast'
+import * as XLSX from 'xlsx'
 
 const OAKLAND_ID = '85da69a8-1e81-48a7-8b0d-82df9eeec15e'
 
@@ -362,6 +363,125 @@ export default function Tienda({ session }) {
     }
   }
 
+  const [exportandoExcel, setExportandoExcel] = useState(false)
+
+  async function exportarExcel() {
+    setExportandoExcel(true)
+    try {
+      const { ini, fin } = getRango()
+
+      // 1. Traer cobros diarios (tienda_ventas) + FEL agregado por dia
+      const [{ data: ventas }, { data: fels }] = await Promise.all([
+        supabase.from('tienda_ventas')
+          .select('fecha, efectivo, tarjeta, neonet, otros, notas')
+          .gte('fecha', ini).lte('fecha', fin)
+          .order('fecha'),
+        supabase.from('tienda_facturas_fel')
+          .select('fecha, numero_factura, uuid_fel, nit_cliente, nombre_cliente, monto, estado, tipo_documento')
+          .eq('estacion_id', OAKLAND_ID)
+          .gte('fecha', ini).lte('fecha', fin)
+          .order('fecha').order('numero_factura')
+      ])
+
+      // 2. Hoja 1: resumen diario con cobros + FEL del dia
+      const felPorDia = {}
+      ;(fels || []).forEach(f => {
+        const m = parseFloat(f.monto || 0)
+        if (!felPorDia[f.fecha]) felPorDia[f.fecha] = { total: 0, cantidad: 0 }
+        felPorDia[f.fecha].total += m
+        felPorDia[f.fecha].cantidad += 1
+      })
+
+      // Set de todas las fechas con datos (ventas o FEL)
+      const fechasSet = new Set([
+        ...(ventas || []).map(v => v.fecha),
+        ...Object.keys(felPorDia)
+      ])
+      const fechasOrdenadas = Array.from(fechasSet).sort()
+
+      const ventaPorFecha = {}
+      ;(ventas || []).forEach(v => { ventaPorFecha[v.fecha] = v })
+
+      const hoja1 = fechasOrdenadas.map(fecha => {
+        const v = ventaPorFecha[fecha] || {}
+        const f = felPorDia[fecha] || { total: 0, cantidad: 0 }
+        const efectivo = parseFloat(v.efectivo || 0)
+        const tarjeta = parseFloat(v.tarjeta || 0)
+        const neonet = parseFloat(v.neonet || 0)
+        const otros = parseFloat(v.otros || 0)
+        const totalCobros = efectivo + tarjeta + neonet + otros
+        return {
+          Fecha: fecha,
+          Efectivo: efectivo,
+          Tarjeta: tarjeta,
+          Neonet: neonet,
+          Otros: otros,
+          'Total cobros': totalCobros,
+          'Total FEL': f.total,
+          'Cantidad FEL': f.cantidad,
+          'Diferencia (cobros - FEL)': totalCobros - f.total,
+          Notas: v.notas || ''
+        }
+      })
+
+      // Fila de totales
+      const totales = hoja1.reduce((acc, r) => ({
+        Efectivo: acc.Efectivo + r.Efectivo,
+        Tarjeta: acc.Tarjeta + r.Tarjeta,
+        Neonet: acc.Neonet + r.Neonet,
+        Otros: acc.Otros + r.Otros,
+        'Total cobros': acc['Total cobros'] + r['Total cobros'],
+        'Total FEL': acc['Total FEL'] + r['Total FEL'],
+        'Cantidad FEL': acc['Cantidad FEL'] + r['Cantidad FEL'],
+        'Diferencia (cobros - FEL)': acc['Diferencia (cobros - FEL)'] + r['Diferencia (cobros - FEL)'],
+      }), { Efectivo:0, Tarjeta:0, Neonet:0, Otros:0, 'Total cobros':0, 'Total FEL':0, 'Cantidad FEL':0, 'Diferencia (cobros - FEL)':0 })
+
+      hoja1.push({
+        Fecha: 'TOTAL',
+        ...totales,
+        Notas: ''
+      })
+
+      // 3. Hoja 2: lista de FEL individuales
+      const hoja2 = (fels || []).map(f => ({
+        Fecha: f.fecha,
+        'No. Factura': f.numero_factura,
+        'UUID FEL': f.uuid_fel,
+        NIT: f.nit_cliente,
+        Cliente: f.nombre_cliente,
+        Tipo: f.tipo_documento,
+        Estado: f.estado,
+        Monto: parseFloat(f.monto || 0)
+      }))
+
+      // 4. Construir workbook
+      const wb = XLSX.utils.book_new()
+
+      const ws1 = XLSX.utils.json_to_sheet(hoja1)
+      ws1['!cols'] = [
+        { wch: 12 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 },
+        { wch: 13 }, { wch: 13 }, { wch: 11 }, { wch: 20 }, { wch: 30 }
+      ]
+      XLSX.utils.book_append_sheet(wb, ws1, 'Diario')
+
+      const ws2 = XLSX.utils.json_to_sheet(hoja2)
+      ws2['!cols'] = [
+        { wch: 12 }, { wch: 14 }, { wch: 38 }, { wch: 14 },
+        { wch: 30 }, { wch: 8 }, { wch: 12 }, { wch: 12 }
+      ]
+      XLSX.utils.book_append_sheet(wb, ws2, 'FEL detalle')
+
+      // 5. Descargar
+      const nombre = `tienda_${ini}_a_${fin}.xlsx`
+      XLSX.writeFile(wb, nombre)
+      toast(`Exportado ${hoja1.length - 1} dias / ${hoja2.length} facturas`, 'success')
+    } catch (err) {
+      console.error('[exportarExcel]', err)
+      toast(`Error al exportar: ${err.message}`, 'error')
+    }
+    setExportandoExcel(false)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-screen">
       <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -403,19 +523,34 @@ export default function Tienda({ session }) {
 
             {/* Selector vista */}
             <div className="bg-white rounded-xl border border-gray-100 p-4">
-              <div className="flex gap-1.5 flex-wrap mb-3">
-                {[
-                  {key:'diaria',label:'Hoy'},
-                  {key:'semanal',label:'Esta semana'},
-                  {key:'mensual',label:'Este mes'},
-                  {key:'mes_anterior',label:'Mes anterior'},
-                  {key:'personalizado',label:'Personalizado'},
-                ].map(v => (
-                  <button key={v.key} onClick={() => aplicarVistaResumen(v.key)}
-                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${vistaResumen===v.key?'bg-blue-600 border-blue-600 text-white font-medium':'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                    {v.label}
+              <div className="flex gap-1.5 flex-wrap mb-3 items-center justify-between">
+                <div className="flex gap-1.5 flex-wrap">
+                  {[
+                    {key:'diaria',label:'Hoy'},
+                    {key:'semanal',label:'Esta semana'},
+                    {key:'mensual',label:'Este mes'},
+                    {key:'mes_anterior',label:'Mes anterior'},
+                    {key:'personalizado',label:'Personalizado'},
+                  ].map(v => (
+                    <button key={v.key} onClick={() => aplicarVistaResumen(v.key)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${vistaResumen===v.key?'bg-blue-600 border-blue-600 text-white font-medium':'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+                {perfil?.rol === 'admin' && (
+                  <button onClick={exportarExcel} disabled={exportandoExcel}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 font-medium flex items-center gap-1.5">
+                    {exportandoExcel ? (
+                      <>
+                        <span className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></span>
+                        Generando...
+                      </>
+                    ) : (
+                      <>↓ Descargar Excel</>
+                    )}
                   </button>
-                ))}
+                )}
               </div>
               {vistaResumen === 'diaria' && (
                 <input type="date" value={fechaResumen} max={hoy}
